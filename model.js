@@ -5,17 +5,25 @@ const AparkaModel = (() => {
   const MAX_TICKET_BYTES = 5 * 1024 * 1024;
   const TICKET_IMAGE_TYPES = Object.freeze(['image/jpeg', 'image/png', 'image/webp']);
   const TICKET_REWARD = 30;
+  const CLOCK_FORMAT = new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Europe/Madrid' });
   const DEFAULTS = Object.freeze({
     pmr: true, stepFree: true, includeOTA: false, preferPr: true,
     resident: false, vehicle: 'ECO', maxWalk: 300, alerts: true,
     vision: 'standard', font: 'inter', spacing: 'normal', simple: false, theme: 'light'
   });
   const PARKINGS = Object.freeze([
-    Object.freeze({ id: 'leioa', name: 'P+R Leioa', type: 'pr', coordinates: Object.freeze([43.318056, -2.991944]), mapReference: 'Entorno de la estación de Leioa; marcador aproximado.', spaces: 42, pmr: 2, stepFree: true, walk: 260, residentOnly: false, vehicles: ['B', 'C', 'ECO', '0'], age: 42, margin: 7, source: 'Sensor LEI-ACC-01', connection: 'Metro L1 · conexión a San Mamés', sensor: Object.freeze({ id: 'LEI-ACC-01', location: 'P+R Leioa · acceso principal · carril de entrada 1 · barrera A', device: 'Contador de entradas y salidas', coverage: 'Ocupación agregada del aparcamiento; no confirma una plaza concreta.' }) }),
-    Object.freeze({ id: 'indautxu', name: 'Indautxu', type: 'parking', coordinates: Object.freeze([43.260861, -2.940236]), mapReference: 'Entorno de la estación de Indautxu; marcador aproximado.', spaces: 18, pmr: 1, stepFree: true, walk: 180, residentOnly: false, vehicles: ['C', 'ECO', '0'], age: 20, margin: 4, source: 'Sensor IND-P1-03', connection: 'Tramo a pie sin escalones · ejemplo', sensor: Object.freeze({ id: 'IND-P1-03', location: 'Parking Indautxu · planta −1 · sector B · acceso a fila 3', device: 'Contador de ocupación por sector', coverage: 'Ocupación del sector B; datos agregados de plazas.' }) }),
-    Object.freeze({ id: 'abando', name: 'Abando · OTA', type: 'ota', coordinates: Object.freeze([43.2625, -2.9295]), mapReference: 'Zona de Abando; marcador aproximado, no ubicación de una plaza.', spaces: 12, pmr: 1, stepFree: true, walk: 90, residentOnly: true, vehicles: ['C', 'ECO', '0'], age: 1130, margin: 5, source: 'Sensor ABA-OTA-07', connection: 'Zona residente · condiciones simuladas', sensor: Object.freeze({ id: 'ABA-OTA-07', location: 'Abando · zona OTA de referencia · tramo 2 · poste de lectura 07', device: 'Nodo de sensores de plazas reguladas', coverage: 'Agregado del tramo 2. La lectura actual ha caducado.' }) })
+    Object.freeze({ id: 'leioa', name: 'P+R Leioa', type: 'pr', coordinates: Object.freeze([43.318056, -2.991944]), mapReference: 'Entorno de la estación de Leioa · ubicación aproximada del ejemplo', spaces: 42, pmr: 2, stepFree: true, walk: 260, residentOnly: false, vehicles: ['B', 'C', 'ECO', '0'], age: 42, margin: 7, source: 'Sensor LEI-ACC-01', connection: 'Metro L1 · conexión a San Mamés', sensor: Object.freeze({ id: 'LEI-ACC-01', location: 'P+R Leioa · acceso principal · carril de entrada 1 · barrera A', device: 'Contador de entradas y salidas', coverage: 'Ocupación agregada del aparcamiento; no confirma una plaza concreta.' }) }),
+    Object.freeze({ id: 'indautxu', name: 'Indautxu', type: 'parking', coordinates: Object.freeze([43.260861, -2.940236]), mapReference: 'Entorno de la estación de Indautxu · ubicación aproximada del ejemplo', spaces: 18, pmr: 1, stepFree: true, walk: 180, residentOnly: false, vehicles: ['C', 'ECO', '0'], age: 20, margin: 4, source: 'Sensor IND-P1-03', connection: 'Tramo a pie sin escalones · ejemplo', sensor: Object.freeze({ id: 'IND-P1-03', location: 'Parking Indautxu · planta −1 · sector B · acceso a fila 3', device: 'Contador de ocupación por sector', coverage: 'Ocupación del sector B; datos agregados de plazas.' }) }),
+    Object.freeze({ id: 'abando', name: 'Abando · OTA', type: 'ota', coordinates: Object.freeze([43.26139, -2.92944]), mapReference: 'Zona de Abando · ubicación aproximada del ejemplo', spaces: 12, pmr: 1, stepFree: true, walk: 90, residentOnly: true, vehicles: ['C', 'ECO', '0'], age: 1130, margin: 5, source: 'Sensor ABA-OTA-07', connection: 'Zona residente · condiciones simuladas', sensor: Object.freeze({ id: 'ABA-OTA-07', location: 'Abando · zona OTA de referencia · tramo 2 · poste de lectura 07', device: 'Nodo de sensores de plazas reguladas', coverage: 'Agregado del tramo 2. La lectura actual ha caducado.' }) })
   ]);
   const fail = (code, message) => ({ ok: false, code, message });
+  function formatTime(value) {
+    return CLOCK_FORMAT.format(value);
+  }
+  function formatAge(milliseconds) {
+    const seconds = Math.floor(milliseconds / 1000);
+    return seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min ${seconds % 60} s`;
+  }
   function createState(preferences = DEFAULTS) {
     return {
       preferences: { ...DEFAULTS, ...preferences }, view: 'welcome', history: [],
@@ -164,5 +172,5 @@ const AparkaModel = (() => {
       && ['normal', 'wide'].includes(value.spacing)
       && (!Object.hasOwn(value, 'theme') || ['light', 'dark'].includes(value.theme));
   }
-  return Object.freeze({ DEMO_START, MAX_AGE_MS, MAX_TICKET_BYTES, TICKET_IMAGE_TYPES, TICKET_REWARD, DEFAULTS, PARKINGS, createState, reading, changeDataMode, compatible, results, journey, submitReport, validateReport, completeJourney, linkBarik, unlinkBarik, submitTicket, validateTicket, prepareRedemption, redeem, validPreferences });
+  return Object.freeze({ DEMO_START, MAX_AGE_MS, MAX_TICKET_BYTES, TICKET_IMAGE_TYPES, TICKET_REWARD, DEFAULTS, PARKINGS, formatTime, formatAge, createState, reading, changeDataMode, compatible, results, journey, submitReport, validateReport, completeJourney, linkBarik, unlinkBarik, submitTicket, validateTicket, prepareRedemption, redeem, validPreferences });
 })();

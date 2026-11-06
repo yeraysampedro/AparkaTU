@@ -1,0 +1,31 @@
+Bibliotecas de mapas incluidas, sin compilacion:
+
+Leaflet 1.9.4
+https://leafletjs.com/
+Origen: https://unpkg.com/leaflet@1.9.4/dist/
+Licencia BSD-2-Clause: leaflet/LICENSE.txt
+
+MapLibre GL JS 5.24.0
+https://maplibre.org/
+Origen: https://unpkg.com/maplibre-gl@5.24.0/dist/
+Licencia BSD-3-Clause: maplibre/LICENSE.txt
+
+MapLibre GL Leaflet 0.1.0
+https://github.com/maplibre/maplibre-gl-leaflet
+Origen: https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.0/
+Licencia ISC: adapter/LICENSE.txt
+
+Cartografia servida por OpenFreeMap, con datos OpenMapTiles y OpenStreetMap:
+https://openfreemap.org/
+https://openfreemap.org/tos/
+https://openfreemap.org/privacy/
+https://www.openstreetmap.org/copyright
+Requiere Internet y WebGL. La atribucion permanece visible en cada mapa.
+No se descargan zonas para uso offline ni se solicita ninguna clave API.
+
+Los marcadores son referencias aproximadas; no localizaciones verificadas
+de accesos, plazas o sensores. Los datos de ocupacion y las zonas de presion
+son simulados.
+Referencias de situacion:
+https://es.wikipedia.org/wiki/Estaci%C3%B3n_de_Leioa
+https://es.wikipedia.org/wiki/Estaci%C3%B3n_de_Indautxu

@@ -62,12 +62,6 @@
   let photoGeneration = 0;
   let photoError = '';
   let photoLoading = false;
-  const liveMaps = new Map();
-  const mapViews = new Map();
-  const bilbaoCenter = [43.2630, -2.9410];
-  const sanMamesCenter = [43.2642, -2.9494];
-  const mapAttribution = '<a href="https://openfreemap.org/" target="_blank" rel="noopener">OpenFreeMap</a> · © <a href="https://openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
-  let mapSequence = 0;
   const startTime = performance.now();
   const modeNames = { metro: 'P+R + Metro', car: 'Solo coche', bike: 'Bici' };
   const observationNames = { free: 'Plaza libre', occupied: 'Plaza ocupada', verify: 'Lectura del sensor confirmada' };
@@ -113,11 +107,8 @@
     return `<label class="field">${e(title)}<select name="${e(name)}">${options.map(([key, label]) => `<option value="${e(key)}"${String(value) === String(key) ? ' selected' : ''}>${e(label)}</option>`).join('')}</select></label>`;
   }
   const chip = (label, active = false) => `<span class="chip${active ? ' active' : ''}">${e(label)}</span>`;
-  const time = value => new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: 'Europe/Madrid' }).format(value);
-  function ageText(ageMs) {
-    const seconds = Math.floor(ageMs / 1000);
-    return seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min ${seconds % 60} s`;
-  }
+  const time = M.formatTime;
+  const ageText = M.formatAge;
   function freshness(parking) {
     const r = M.reading(parking, state);
     return `<span data-age="${e(parking.id)}">${e(time(r.updatedAt))} · hace ${e(ageText(r.ageMs))} · ${e(parking.source)}</span>`;
@@ -146,239 +137,18 @@
   }
   function mapMarkup(interactive = true, compact = false) {
     const focus = ['parking', 'sensor'].includes(state.view) ? state.selectedParking : '';
-    const id = `bilbao-map-${++mapSequence}`;
-    const key = `${state.view}:${focus || 'bilbao'}`;
-    return `<section class="map-widget${compact ? ' is-compact' : ''}" data-map-key="${e(key)}">
-      <div class="real-map-toolbar"><div class="row">
-        <button class="map-tool" data-action="map-bilbao">Bilbao</button>
-        <button class="map-tool" data-action="map-all">Todos los puntos</button>
-        <button class="map-tool" data-action="map-pressure" aria-pressed="true">Capa de presión</button>
-      </div></div>
-      <div class="real-map-frame">
-        <div id="${id}" class="leaflet-host" data-leaflet-map data-focus="${e(focus)}" data-marker-actions="${interactive}" role="region" aria-label="Mapa de Bilbao y alrededores. Usa los controles de zoom o las flechas del teclado."></div>
-        <div class="map-load-status" role="status"><span>Cargando cartografía…</span><button class="map-tool" data-action="map-retry" hidden>Reintentar</button></div>
+    const key = focus ? `${state.view}:${focus}` : state.view;
+    return `<section class="geographic-map${compact ? ' compact-map' : ''}" data-leaflet-map data-map-key="${e(key)}" data-map-focus="${e(focus)}" data-map-parkings="${interactive}" data-map-status="loading" aria-label="Mapa de Bilbao y Leioa">
+      <div class="geographic-map-tools" role="group" aria-label="Controles de cartografía">
+        <button type="button" data-map-command="bilbao">Bilbao</button>
+        <button type="button" data-map-command="all">Bilbao y Leioa</button>
+        ${focus ? '<button type="button" data-map-command="focus">Centrar aparcamiento</button>' : ''}
+        <label><input type="checkbox" data-map-command="pressure" checked> Presión · ejemplo</label>
       </div>
-      <div class="real-map-caption"><span>Cartografía real. Marcadores, ocupación y presión de ejemplo.</span><span class="map-outside-hint"></span></div>
-      <noscript>El mapa necesita JavaScript e Internet.</noscript>
+      <div class="live-map" role="region" aria-label="Mapa interactivo. Usa los botones más y menos para cambiar el zoom y las flechas para desplazarte." tabindex="0"></div>
+      <div class="geographic-map-status"><span data-map-status role="status">Cargando cartografía…</span><button type="button" data-map-command="retry" hidden>Reintentar</button></div>
+      <p class="geographic-map-note">Calles de OpenStreetMap. Plazas, sensores y zonas de presión de ejemplo. Los marcadores indican ubicaciones aproximadas.</p>
     </section>`;
-  }
-  function mapStatus(record, message, failed = false) {
-    const status = record.widget.querySelector('.map-load-status');
-    status.hidden = !message;
-    status.classList.toggle('has-error', failed);
-    status.querySelector('span').textContent = message;
-    status.querySelector('button').hidden = !failed;
-    record.host.dataset.mapReady = message ? 'false' : 'true';
-  }
-  function disposeMap(record, remember = true) {
-    record.destroyed = true;
-    clearTimeout(record.loadTimer);
-    record.resizeObserver?.disconnect();
-    if (record.map) {
-      if (remember) {
-        const center = record.map.getCenter();
-        const open = Array.from(record.markers.entries()).find(([, marker]) => marker.isPopupOpen());
-        mapViews.set(record.key, { center: [center.lat, center.lng], zoom: record.map.getZoom(), pressure: record.pressureVisible, popup: open?.[0] });
-      }
-      record.map.remove();
-    }
-    liveMaps.delete(record.host.id);
-  }
-  function disposeMaps() {
-    for (const record of Array.from(liveMaps.values())) disposeMap(record);
-  }
-  function parkingPopup(parking, markerActions) {
-    const r = M.reading(parking, state);
-    const content = document.createElement('section');
-    content.className = 'parking-popup';
-    content.innerHTML = `<h3>${e(parking.name)}</h3><p class="${r.available === null ? 'muted' : 'popup-availability'}">${r.available === null ? 'Disponibilidad desconocida' : `${r.available} plazas orientativas`}</p><p>${e(parking.mapReference)}</p><p class="popup-source">${freshness(parking)}</p><p class="popup-note">Ocupación y sensor de ejemplo. No reserva una plaza.</p>`;
-    if (markerActions) {
-      const open = document.createElement('button');
-      open.type = 'button';
-      open.className = 'button small full';
-      open.dataset.id = parking.id;
-      open.textContent = 'Ver aparcamiento';
-      open.addEventListener('click', event => {
-        event.stopPropagation();
-        actions.parking(open);
-      });
-      content.append(open);
-    }
-    return content;
-  }
-  function markerIcon(parking) {
-    const r = M.reading(parking, state);
-    return L.divIcon({
-      className: 'parking-map-icon',
-      html: `<span class="parking-map-badge${r.available === null ? ' unknown' : ''}"><span>${parking.type === 'pr' ? 'P+R' : 'P'}</span><strong>${r.available === null ? '?' : r.available}</strong></span>`,
-      iconSize: [66, 38], iconAnchor: [33, 38], popupAnchor: [0, -35]
-    });
-  }
-  function updateMapOverlays(record) {
-    if (!record.map || record.destroyed) return;
-    const style = getComputedStyle(document.body);
-    const unknown = state.dataMode !== 'fresh' || M.PARKINGS.every(p => M.reading(p, state).available === null);
-    const color = token => style.getPropertyValue(token).trim();
-    record.pressureLayers.forEach(({ circle, label, kind }) => {
-      circle.setStyle({ color: color(unknown ? '--muted' : kind === 'high' ? '--risk' : '--calm'), fillColor: color(unknown ? '--gray-soft' : kind === 'high' ? '--risk-soft' : '--calm-soft') });
-      label.setIcon(L.divIcon({
-        className: `map-pressure-label ${unknown ? 'unknown' : kind}`,
-        html: unknown ? '? Desconocido' : `<i class="${kind === 'high' ? 'legend-triangle' : 'legend-dot'}"></i>${kind === 'high' ? 'A · Alta presión' : 'B · Baja presión'}`,
-        iconSize: [132, 25], iconAnchor: [66, -8]
-      }));
-    });
-    record.markers.forEach((marker, id) => {
-      const parking = M.PARKINGS.find(p => p.id === id);
-      const r = M.reading(parking, state);
-      marker.setIcon(markerIcon(parking));
-      const element = marker.getElement();
-      element?.setAttribute('aria-label', `${parking.name}: ${r.available === null ? 'disponibilidad desconocida' : `${r.available} plazas orientativas`}. Datos de ejemplo.`);
-      marker.setPopupContent(parkingPopup(parking, record.markerActions));
-    });
-  }
-  function setBasemap(record) {
-    const theme = document.body.dataset.theme === 'dark' ? 'dark' : 'light';
-    if (record.style === theme || !record.gl) return;
-    record.style = theme;
-    record.failed = false;
-    record.styleLoaded = false;
-    mapStatus(record, 'Cargando cartografía…');
-    clearTimeout(record.loadTimer);
-    record.loadTimer = setTimeout(() => {
-      if (!record.destroyed && record.host.dataset.mapReady !== 'true') {
-        console.warn('AparkaTu: la cartografía no terminó de cargar.', record.key);
-        mapStatus(record, 'No se pudo completar la carga del mapa. Comprueba la conexión.', true);
-      }
-    }, 20000);
-    record.gl.setStyle(`https://tiles.openfreemap.org/styles/${theme === 'dark' ? 'dark' : 'liberty'}`, { diff: false });
-  }
-  function updateMapAppearance() {
-    for (const record of liveMaps.values()) {
-      setBasemap(record);
-      updateMapOverlays(record);
-    }
-  }
-  function mountMap(host) {
-    const widget = host.closest('.map-widget');
-    const key = widget.dataset.mapKey;
-    const saved = mapViews.get(key);
-    const record = { host, widget, key, map: null, gl: null, style: null, markers: new Map(), pressureLayers: [], pressureVisible: saved?.pressure !== false, markerActions: host.dataset.markerActions === 'true', destroyed: false, failed: false };
-    liveMaps.set(host.id, record);
-    if (!window.L || !window.maplibregl || !L.maplibreGL) {
-      console.error('AparkaTu: no se han cargado las bibliotecas del mapa.');
-      mapStatus(record, 'Faltan archivos de Leaflet o MapLibre. Recarga la página con su carpeta de recursos.', true);
-      return;
-    }
-    try {
-      const focused = M.PARKINGS.find(p => p.id === host.dataset.focus);
-      const center = saved?.center || focused?.coordinates || (state.view === 'event' ? sanMamesCenter : bilbaoCenter);
-      const zoom = saved?.zoom || (focused ? 16 : 14);
-      record.map = L.map(host, {
-        minZoom: 9, maxZoom: 19, scrollWheelZoom: false,
-        maxBounds: [[43.05, -3.35], [43.58, -2.45]], maxBoundsViscosity: 1,
-        zoomAnimation: !matchMedia('(prefers-reduced-motion: reduce)').matches
-      }).setView(center, zoom);
-      record.map.attributionControl.setPrefix('<a href="https://leafletjs.com/" target="_blank" rel="noopener">Leaflet</a>');
-      record.map.attributionControl.addAttribution(mapAttribution);
-      record.map.zoomControl.setPosition('topright');
-      const zoomButtons = host.querySelectorAll('.leaflet-control-zoom a');
-      zoomButtons[0]?.setAttribute('aria-label', 'Acercar el mapa');
-      zoomButtons[1]?.setAttribute('aria-label', 'Alejar el mapa');
-      record.map.createPane('pressure');
-      record.map.getPane('pressure').style.zIndex = '410';
-      record.layer = L.maplibreGL({
-        style: { version: 8, sources: {}, layers: [] },
-        attributionControl: false, interactive: false, renderWorldCopies: false
-      }).addTo(record.map);
-      record.gl = record.layer.getMaplibreMap();
-      record.gl.getCanvas().setAttribute('aria-hidden', 'true');
-      record.gl.getCanvas().setAttribute('tabindex', '-1');
-      record.gl.on('style.load', () => {
-        if (record.destroyed || !record.gl.getSource('openmaptiles')) return;
-        if (record.style === 'dark') {
-          for (const layer of record.gl.getStyle().layers) {
-            if (layer.type === 'symbol' && layer.layout?.['text-field']) {
-              record.gl.setPaintProperty(layer.id, 'text-color', '#d4ddd6');
-              record.gl.setPaintProperty(layer.id, 'text-halo-color', '#152019');
-              record.gl.setPaintProperty(layer.id, 'text-halo-width', 1.2);
-            }
-            if (layer.type === 'line' && layer['source-layer'] === 'transportation') record.gl.setPaintProperty(layer.id, 'line-color', '#536159');
-            if (layer.type === 'fill' && layer['source-layer'] === 'water') record.gl.setPaintProperty(layer.id, 'fill-color', '#294b51');
-          }
-        }
-        record.styleLoaded = true;
-      });
-      record.gl.on('idle', () => {
-        if (!record.destroyed && !record.failed && record.styleLoaded && record.gl.isStyleLoaded() && record.gl.areTilesLoaded()) {
-          clearTimeout(record.loadTimer);
-          mapStatus(record, '');
-        }
-      });
-      record.gl.on('error', event => {
-        if (record.destroyed || event.error?.name === 'AbortError') return;
-        if (!record.failed) console.warn('AparkaTu: error al cargar cartografía.', event.error);
-        record.failed = true;
-        clearTimeout(record.loadTimer);
-        mapStatus(record, 'Parte del mapa no se ha podido cargar. Puedes reintentar sin perder los filtros.', true);
-      });
-      record.gl.on('webglcontextlost', () => {
-        if (record.destroyed) return;
-        record.failed = true;
-        mapStatus(record, 'El navegador ha interrumpido el mapa. Pulsa Reintentar.', true);
-      });
-      record.pressureGroup = L.layerGroup();
-      [
-        { kind: 'high', center: sanMamesCenter, radius: 550 },
-        { kind: 'low', center: M.PARKINGS[0].coordinates, radius: 300 }
-      ].forEach(zone => {
-        const circle = L.circle(zone.center, { radius: zone.radius, pane: 'pressure', weight: 2, dashArray: '5 6', fillOpacity: .28, interactive: false });
-        const label = L.marker([zone.center[0] - zone.radius / 111320, zone.center[1]], { interactive: false, keyboard: false, icon: L.divIcon({ className: 'map-pressure-label', html: '', iconSize: [132, 25] }) });
-        record.pressureGroup.addLayer(circle).addLayer(label);
-        record.pressureLayers.push({ circle, label, kind: zone.kind });
-      });
-      if (record.pressureVisible) record.pressureGroup.addTo(record.map);
-      widget.querySelector('[data-action="map-pressure"]').setAttribute('aria-pressed', String(record.pressureVisible));
-      const parkings = focused ? [focused] : ['map', 'results'].includes(state.view) ? M.results(state) : M.PARKINGS;
-      for (const parking of parkings) {
-        const marker = L.marker(parking.coordinates, { icon: markerIcon(parking), title: parking.name, keyboard: true, riseOnHover: true })
-          .bindPopup(parkingPopup(parking, record.markerActions), { maxWidth: Math.min(270, Math.max(150, host.clientWidth - 105)), minWidth: 150, autoPanPaddingTopLeft: [20, 20], autoPanPaddingBottomRight: [55, 35] }).addTo(record.map);
-        marker.on('popupopen', () => {
-          marker.setPopupContent(parkingPopup(parking, record.markerActions));
-          marker.getPopup().getElement()?.querySelector('.leaflet-popup-close-button')?.setAttribute('aria-label', 'Cerrar información del aparcamiento');
-        });
-        record.markers.set(parking.id, marker);
-      }
-      const updateOutside = () => {
-        if (record.destroyed) return;
-        const outside = parkings.filter(p => !record.map.getBounds().contains(p.coordinates)).length;
-        widget.querySelector('.map-outside-hint').textContent = outside ? `${outside} punto${outside === 1 ? '' : 's'} fuera de esta vista. Usa «Todos los puntos».` : '';
-      };
-      record.map.on('moveend', updateOutside);
-      updateOutside();
-      updateMapOverlays(record);
-      setBasemap(record);
-      if (saved?.popup) record.markers.get(saved.popup)?.openPopup();
-      record.resizeObserver = new ResizeObserver(() => {
-        if (!record.destroyed && host.clientWidth && host.clientHeight) record.map.invalidateSize({ pan: false });
-      });
-      record.resizeObserver.observe(host);
-    } catch (error) {
-      console.error('AparkaTu: no se pudo iniciar el mapa.', error);
-      disposeMap(record, false);
-      mapStatus(record, 'No se ha podido iniciar el mapa. Se necesita un navegador con WebGL e Internet.', true);
-    }
-  }
-  function mountMaps() {
-    main.querySelectorAll('[data-leaflet-map]').forEach(mountMap);
-  }
-  function mapForControl(control) {
-    const host = control.closest('.map-widget')?.querySelector('[data-leaflet-map]');
-    const record = host && liveMaps.get(host.id);
-    if (!record?.map) {
-      notify('El mapa no está disponible. Usa Reintentar o consulta la lista de aparcamientos.', true);
-      return null;
-    }
-    return record;
   }
   const mapLegend = () => `<div class="map-legend"><div class="legend-items"><span><i class="legend-dot"></i>Baja presión</span><span><i class="legend-triangle"></i>Alta presión</span><span><i class="legend-square"></i>Desconocido</span></div><span>Predicción, no garantía</span></div>`;
   function searchbar() {
@@ -387,7 +157,7 @@
   function renderMap() {
     const recommended = M.journey('metro', state.departure);
     const all = M.results(state);
-    return heading('Aparcamientos en Bilbao y alrededores.', 'Consulta el mapa, revisa los filtros y compara las opciones de transporte.', button('Mis preferencias', 'go', { view: 'profile', kind: 'secondary', glyph: 'access' }), 'Bilbao · Bizkaia')
+    return heading('Aparcamientos en Bilbao y Leioa.', 'Consulta el mapa y las opciones del catálogo de ejemplo.', button('Mis preferencias', 'go', { view: 'profile', kind: 'secondary', glyph: 'access' }), 'Mapa de aparcamientos')
       + connectionBanner() + searchbar()
       + `<div class="map-layout"><div class="stack"><section class="panel map-panel"><div class="map-filters"><div class="chips"><button class="chip active" data-action="refresh">${icon('clock')} Ahora</button><button class="chip${state.preferences.pmr ? ' active' : ''}" data-action="filters">${icon('access')} PMR</button><button class="chip${state.preferences.preferPr ? ' active' : ''}" data-action="filters">P+R</button><button class="chip" data-action="filters">${icon('sliders')} Filtros</button></div><span class="time-pill">${icon('clock')}<span data-clock>${time(state.now).slice(0, 5)}</span> · ejemplo</span></div>${mapMarkup()}${mapLegend()}</section>
         <div class="section-title" style="margin-top:7px"><h2>Opciones que encajan contigo</h2><button class="mini-link" data-action="go" data-view="results" style="margin:0">Ver todas ${icon('arrow')}</button></div><div class="parking-list">${all.length ? all.slice(0, 2).map(p => parkingRow(p)).join('') : emptyResults()}</div></div>
@@ -405,7 +175,7 @@
   function renderResults() {
     const parkings = M.results(state);
     return back() + heading(`Tu sitio cerca de ${state.destination}.`, `${parkings.length} opciones de ejemplo compatibles con tus preferencias.`, button('Filtrar resultados', 'filters', { kind: 'secondary', glyph: 'sliders' }))
-      + connectionBanner() + `<div class="split"><section class="stack">${banner('Comparar medios de transporte', 'Los tiempos incluyen la búsqueda de aparcamiento y el último tramo a pie.', 'train', 'neutral')}${parkings.length ? `<div class="parking-list">${parkings.map(p => parkingRow(p)).join('')}</div>` : emptyResults()}<p class="footnote">La búsqueda usa un catálogo local de ejemplo; no consulta disponibilidad real ni envía tu dirección a un geocodificador. El mapa muestra cartografía de OpenStreetMap.</p></section><div class="stack"><section class="panel map-panel">${mapMarkup(true, true)}${mapLegend()}</section>${goButton('Comparar coche, Metro y bici', 'compare', { kind: 'green', full: true, glyph: 'arrow' })}</div></div>`;
+      + connectionBanner() + `<div class="split"><section class="stack">${banner('No todo es llegar en coche.', 'Compara el tiempo total, incluida la búsqueda y el último tramo a pie.', 'train', 'neutral')}${parkings.length ? `<div class="parking-list">${parkings.map(p => parkingRow(p)).join('')}</div>` : emptyResults()}<p class="footnote">Catálogo local de ejemplo de Bilbao y su entorno. Esta web no consulta una base de datos geográfica ni disponibilidad en vivo.</p></section><div class="stack"><section class="panel map-panel">${mapMarkup(true, true)}${mapLegend()}</section>${goButton('Comparar coche, Metro y bici', 'compare', { kind: 'green', full: true, glyph: 'arrow' })}</div></div>`;
   }
   function renderParking() {
     const p = selectedParking();
@@ -641,13 +411,14 @@
         ['upload', 'Tu foto se queda en el dispositivo.', 'El ticket se abre localmente y se calcula una huella para evitar duplicados. No hay subida a servidores ni OCR. La imagen se descarta al validar, quitarla, reemplazarla, desvincular Barik o cerrar la página. Las referencias quedan solo durante esta visita.'],
         ['chat', 'Asistente local.', 'Usa respuestas guiadas y los datos de ejemplo. La conversación no se envía a una IA ni se guarda en el navegador. No escribas información personal.'],
         ['pin', 'Ubicación opcional.', 'La web no solicita GPS. Puedes introducir origen y destino manualmente.'],
-        ['sliders', 'Preferencias guardadas en el navegador.', 'Se conservan el tema, la accesibilidad y las condiciones de acceso. La aplicación no incorpora analítica.'],
-        ['map', 'Cartografía externa de OpenFreeMap.', 'Para mostrar el mapa, el navegador solicita cartografía, etiquetas y estilos a OpenFreeMap, basados en OpenStreetMap. El proveedor recibe tu dirección IP y las peticiones de las zonas visibles. No se envían los campos de búsqueda, la tarjeta Barik, las fotos ni la conversación. Se necesita conexión a Internet.']
+        ['sliders', 'Preferencias guardadas en este navegador.', 'Se conservan el tema nocturno, la accesibilidad y las condiciones de acceso. No usamos analítica.'],
+        ['map', 'Cartografía de OpenFreeMap.', 'El mapa necesita Internet. OpenFreeMap y su red de distribución reciben tu dirección IP y las solicitudes de la zona que visualizas. No enviamos búsquedas, reportes, tarjetas, fotos ni conversaciones. No se solicita el GPS. La ocupación y los sensores continúan siendo ejemplos locales.']
       ].map(([glyph, title, text]) => `<article class="privacy-point">${icon(glyph)}<div><h3>${title}</h3><p>${text}</p></div></article>`).join('')}${button('Borrar mis preferencias guardadas', 'clear-preferences', { kind: 'secondary', full: true })}</section>
       <div class="stack">${card('unknown', 'NO CONFUNDIMOS AUSENCIA CON DISPONIBILIDAD', 'Caducado significa desconocido.', 'Cada lectura muestra sensor, ubicación, hora y antigüedad. Las lecturas del ejemplo son válidas durante 3 minutos.', 'Umbral ilustrativo, no una regla oficial del operador', goButton('Ver el estado de los datos', 'connection', { kind: 'secondary', full: true }))}
       ${card('positive', 'INFORMAR, NO RESERVAR', 'Sin promesas de una plaza.', 'La ocupación puede cambiar antes de que llegues. Los rangos y tiempos son estimaciones. La señalización y el operador determinan las condiciones reales.')}
       ${card('', 'SENSORES DE CADA INFRAESTRUCTURA', 'Un origen identificable para cada lectura.', 'OTA y parkings muestran identificadores, dispositivos y ubicaciones concretas del escenario. Todos ellos son ficticios, no instalaciones verificadas.')}
       ${state.barik ? button('Desvincular Barik y eliminar la foto', 'unlink-barik', { kind: 'secondary', full: true }) : ''}
+      <section class="card"><div class="eyebrow">PROVEEDOR DEL MAPA</div><h3>OpenFreeMap y OpenStreetMap</h3><p>Las calles proceden de cartografía real. Las áreas de presión y los puntos del catálogo no son lecturas en vivo.</p><p><a href="https://openfreemap.org/privacy/" target="_blank" rel="noreferrer">Privacidad de OpenFreeMap</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">Atribución de los datos</a></p></section>
       ${goButton('Ver el impacto agregado', 'impact', { kind: 'secondary', full: true, glyph: 'chart' })}</div></div>`;
   }
   function renderConnection() {
@@ -657,7 +428,7 @@
   }
   function renderLocation() {
     return heading('Tu ubicación es una elección.', 'Puedes usar AparkaTu sin compartir tu posición.')
-      + `<div class="split"><form id="location-form" class="panel panel-pad form-stack"><h2>¿Desde dónde sales?</h2><label class="field">Origen<input name="origin" value="${e(state.origin)}" maxlength="100" required autocomplete="off" placeholder="Por ejemplo, Getxo"></label><label class="field">Destino<input name="destination" value="${e(state.destination)}" maxlength="100" required autocomplete="off" placeholder="Por ejemplo, San Mamés"></label><button class="button" type="submit">${icon('search')} Buscar sin compartir ubicación</button><p class="footnote">Los campos de este formulario solo se mantienen durante esta visita y no se envían a servicios de mapas.</p></form><div class="stack">${card('positive', 'BÚSQUEDA MANUAL', 'Elegir origen y destino.', 'Consulta el mapa y las opciones del catálogo sin conceder permisos de ubicación.')}${card('', 'CARTOGRAFÍA Y DATOS', 'El mapa es real; la ocupación es de ejemplo.', 'OpenFreeMap sirve la cartografía de las zonas visibles. Las rutas y disponibilidades siguen siendo simuladas. No se accede al GPS ni se calcula una ruta real a partir de tu dirección.')}${goButton('Leer cómo tratamos tus datos', 'privacy', { kind: 'secondary', full: true, glyph: 'shield' })}</div></div>`;
+      + `<div class="split"><form id="location-form" class="panel panel-pad form-stack"><h2>¿Desde dónde sales?</h2><label class="field">Origen<input name="origin" value="${e(state.origin)}" maxlength="100" required autocomplete="off" placeholder="Por ejemplo, Getxo"></label><label class="field">Destino<input name="destination" value="${e(state.destination)}" maxlength="100" required autocomplete="off" placeholder="Por ejemplo, San Mamés"></label><button class="button" type="submit">${icon('search')} Buscar sin compartir ubicación</button><p class="footnote">Estos lugares solo se mantienen durante esta visita. No se guardan como un historial.</p></form><div class="stack">${card('positive', 'NO NECESITAS DAR PERMISO', 'Sigues teniendo alternativas.', 'Consulta el mapa, el catálogo de aparcamientos y los recorridos de referencia introduciendo tus lugares manualmente.')}${card('', 'TRANSPARENCIA', 'Sin acceso al GPS.', 'Los datos de la página son de ejemplo. No calculamos distancias reales a partir de tu dirección ni te seguimos durante el recorrido.')}${goButton('Leer cómo tratamos tus datos', 'privacy', { kind: 'secondary', full: true, glyph: 'shield' })}</div></div>`;
   }
   function renderPublic() {
     const offline = state.dataMode !== 'fresh' || M.PARKINGS.every(p => M.reading(p, state).available === null);
@@ -684,11 +455,11 @@
       ['', 'Agenda', 'Riesgo por eventos', 'Evento de referencia, no vigente'],
       ['positive', 'Comunidad', 'Reportes anónimos', `${state.reports.filter(r => r.validated).length} validados en esta visita`]
     ];
-    return heading('Más impacto. Menos huella.', 'Una visión agregada de la movilidad, sin rastrear a nadie.', `<span class="chip">${icon('clock')} Últimos 30 días · ejemplo</span>`, ' Expediente Rizoma')
+    return heading('Impacto de la movilidad.', 'Tiempo de búsqueda, kilómetros y emisiones evitadas.', `<span class="chip">${icon('clock')} Últimos 30 días · ejemplo</span>`)
       + `<div class="metrics impact-metrics">${impactCards}</div><p class="footnote" style="margin-top:12px">Ahorro agregado durante 30 días respecto al escenario habitual equivalente. El porcentaje compara el cambio con el valor anterior. Todas las cifras son de ejemplo.</p>
         <div class="two-col" style="margin-top:23px"><section class="panel map-panel"><div class="panel-head"><div><h2>Anticipar antes de saturar.</h2><p>Presión urbana prevista · esquema de referencia</p></div>${icon('map')}</div>${mapMarkup(false, true)}${mapLegend()}</section><section class="panel panel-pad"><h3>Menos minutos dando vueltas.</h3><p class="small muted">50 minutos ahorrados en los últimos 7 días del periodo · ejemplo</p><div class="chart" role="img" aria-label="Minutos evitados de ejemplo: lunes 4, martes 6, miércoles 5, jueves 8, viernes 9, sábado 7 y domingo 11. Total: 50 minutos.">${[4, 6, 5, 8, 9, 7, 11].map((v, i) => `<div class="chart-col"><span class="chart-value">${v}</span><div class="chart-bar" style="height:${v * 11}px"></div><span class="chart-day">${['L', 'M', 'X', 'J', 'V', 'S', 'D'][i]}</span></div>`).join('')}</div><div class="metrics two">${metric('26 avisos', 'Falsas alarmas evitadas', 'Antes: 100 → ahora: 74', '', '−26 %')}${metric('184', 'Aportaciones validadas', 'Indicador social de ejemplo')}</div></section></div>
         <div class="section-title"><h2>Cinco fuentes. Ninguna falsa certeza.</h2><span class="small muted">Origen y fiabilidad a la vista</span></div><div class="source-grid">${sources.map(([tone, name, detail, foot]) => `<section class="card source-card ${tone}"><div class="eyebrow">${name}</div><h3>${detail}</h3><div class="meta">${foot}</div></section>`).join('')}</div>
-        <div class="section-title"><h2>Una ciudad que funciona mejor para todos.</h2></div><div class="ecosystem-grid">${[['chart', 'INTELIGENCIA Y DATA', 'Anticipación', 'Sensores, mapas de presión y alertas anónimas.'], ['access', 'HÁBITAT Y COEXISTENCIA', 'Accesibilidad', 'Menos tráfico de agitación y protección residencial.'], ['leaf', 'BIOINNOVACIÓN', 'Infraestructura verde', 'Espacios liberados y áreas de filtración natural.'], ['train', 'TRANSICIÓN SOSTENIBLE', 'Intermodalidad', 'Oasis térmicos, Metro y micromovilidad.']].map(([glyph, area, title, text]) => `<section class="card"><div class="card-icon"><span class="eyebrow">${area}</span>${icon(glyph)}</div><h3>${title}</h3><p>${text}</p></section>`).join('')}</div><p class="footnote" style="margin-top:22px">Todas las cifras de impacto son ilustrativas. Un servicio real deberá comparar periodos equivalentes y publicar su metodología, cobertura e incertidumbre. No se muestran trayectos individuales.</p>`;
+        <div class="section-title"><h2>Funciones de AparkaTu</h2></div><div class="ecosystem-grid">${[['chart', 'APARCAMIENTO', 'Estado de las zonas', 'Consulta los sensores, la antigüedad de las lecturas y los avisos de saturación.'], ['access', 'ACCESIBILIDAD', 'Opciones compatibles', 'Filtra por plazas PMR, recorridos sin escalones y distancia a pie.'], ['leaf', 'CALOR Y ENTORNO', 'Sombra en el recorrido', 'Consulta los avisos de calor y los espacios verdes de referencia.'], ['train', 'TRANSPORTE', 'Comparación de rutas', 'Compara coche, Metro y bici contando la búsqueda y el tramo a pie.']].map(([glyph, area, title, text]) => `<section class="card"><div class="card-icon"><span class="eyebrow">${area}</span>${icon(glyph)}</div><h3>${title}</h3><p>${text}</p></section>`).join('')}</div><p class="footnote" style="margin-top:22px">Todas las cifras de impacto son ilustrativas. Un servicio real deberá comparar periodos equivalentes y publicar su metodología, cobertura e incertidumbre. No se muestran trayectos individuales.</p>`;
   }
   function renderWelcome() {
     return `<div class="wide-narrow">${heading('Menos vueltas. Más ciudad.', 'Una forma más tranquila de moverte por Bizkaia.', '', 'Bienvenido a AparkaTu')}<div class="two-col"><section class="panel map-panel">${mapMarkup(false)}${mapLegend()}</section><div class="stack">${card('positive', 'APARCA CON INFORMACIÓN CLARA', 'Encuentra una opción compatible.', 'Configura tus necesidades de acceso, consulta la frescura de los datos y compara alternativas.')}${card('', 'NO HACE FALTA UNA CUENTA', 'Empieza sin dejar huella.', 'No guardamos tus trayectos. Solo tus preferencias se mantienen en tu navegador.')}${goButton('Preparar mi perfil', 'profile', { kind: 'green', full: true, glyph: 'arrow' })}${goButton('Ir directamente al mapa', 'map', { kind: 'secondary', full: true })}</div></div></div>`;
@@ -704,11 +475,12 @@
     applyPreferences();
   }
   function applyPreferences() {
+    applyTheme(state.preferences.theme);
     document.body.dataset.vision = state.preferences.vision;
     document.body.dataset.font = state.preferences.font;
     document.body.dataset.spacing = state.preferences.spacing;
     document.body.dataset.simple = String(state.preferences.simple);
-    applyTheme(state.preferences.theme);
+    AparkaMaps.appearance();
   }
   function applyTheme(theme) {
     document.body.dataset.theme = theme;
@@ -719,7 +491,7 @@
     control.setAttribute('aria-label', dark ? 'Activar modo diurno' : 'Activar modo nocturno');
     control.title = dark ? 'Activar modo diurno' : 'Activar modo nocturno';
     document.querySelector('meta[name="theme-color"]').content = dark ? '#111813' : '#172b22';
-    updateMapAppearance();
+    AparkaMaps.appearance();
   }
   let toastTimer;
   function notify(message, error = false) {
@@ -752,11 +524,14 @@
     document.getElementById('breadcrumb-current').textContent = views[state.view][0];
   }
   function render(focus = false) {
-    disposeMaps();
+    AparkaMaps.destroy();
     applyPreferences();
     renderNavigation();
     main.innerHTML = views[state.view][1]();
-    mountMaps();
+    AparkaMaps.mount(main, state, id => {
+      state.selectedParking = id;
+      navigate('parking');
+    });
     document.title = `AparkaTu · ${views[state.view][0]}`;
     if (focus) {
       main.focus({ preventScroll: true });
@@ -847,7 +622,7 @@
       return { text: 'En Mi perfil puedes mantener plazas PMR, rutas sin escalones y una distancia máxima a pie. En Accesibilidad puedes elegir deuteranopía, protanopía o tritanopía, tipografía Lexend y más interlineado.\nEl mapa conserva formas y etiquetas: nunca depende solo del color.', view: 'settings', label: 'Abrir accesibilidad' };
     }
     if (/privacidad|datos personales|rastre|historial|guarda/.test(q)) {
-      return { text: 'Se guardan las preferencias de interfaz en este navegador. Los reportes no se vinculan a la tarjeta. La Barik, las fotos y esta conversación se descartan al cerrar o recargar.\nEl mapa solicita cartografía a OpenFreeMap. El proveedor recibe tu IP y la zona del mapa consultada, pero no los campos de los formularios. El asistente no utiliza GPS ni una IA externa.', view: 'privacy', label: 'Ver privacidad y transparencia' };
+      return { text: 'Se guardan las preferencias de interfaz en este navegador. Los reportes no se vinculan a la tarjeta. La Barik, las fotos y esta conversación no se guardan al cerrar o recargar.\nEl mapa descarga cartografía de OpenFreeMap. Ese proveedor recibe tu IP y la zona visible; no le enviamos formularios ni conversaciones. No se solicita el GPS.', view: 'privacy', label: 'Ver privacidad y transparencia' };
     }
     if (/foro|vecin|garaje|cesion/.test(q)) {
       return { text: 'El foro vecinal está previsto para una fase futura: dudas sobre zonas, soporte entre vecinos e información sobre posibles cesiones temporales de plazas privadas. Todavía no permite publicar ni reservar.\nAhora puedes aportar observaciones sobre sensores en Comunidad.', view: 'report', label: 'Abrir comunidad' };
@@ -874,34 +649,6 @@
     appendAssistantMessage(answer.text, false, answer);
   }
   const actions = {
-    'map-bilbao': el => {
-      const record = mapForControl(el);
-      if (record) record.map.setView(bilbaoCenter, 14);
-    },
-    'map-all': el => {
-      const record = mapForControl(el);
-      if (!record) return;
-      const points = Array.from(record.markers.values()).map(marker => marker.getLatLng());
-      if (!points.length) {
-        notify('No hay aparcamientos compatibles con los filtros actuales.', true);
-        return;
-      }
-      record.map.fitBounds(L.latLngBounds(points), { padding: [45, 45], maxZoom: 16 });
-    },
-    'map-pressure': el => {
-      const record = mapForControl(el);
-      if (!record) return;
-      record.pressureVisible = !record.pressureVisible;
-      if (record.pressureVisible) record.pressureGroup.addTo(record.map);
-      else record.map.removeLayer(record.pressureGroup);
-      el.setAttribute('aria-pressed', String(record.pressureVisible));
-    },
-    'map-retry': el => {
-      const host = el.closest('.map-widget').querySelector('[data-leaflet-map]');
-      const previous = liveMaps.get(host.id);
-      if (previous) disposeMap(previous);
-      mountMap(host);
-    },
     go: el => {
       if (el.closest('#assistant-panel')) closeAssistant(false);
       navigate(el.dataset.view);
@@ -1064,7 +811,7 @@
   };
   document.addEventListener('click', event => {
     const link = event.target.closest('a[href^="#"]');
-    if (link && !link.closest('.leaflet-container') && link.getAttribute('href') !== '#main') {
+    if (link && link.getAttribute('href') !== '#main') {
       event.preventDefault();
       navigate(link.getAttribute('href').slice(1));
       return;
@@ -1181,7 +928,7 @@
     }
     if (event.target.name === 'vision') {
       document.body.dataset.vision = event.target.value;
-      updateMapAppearance();
+      AparkaMaps.appearance();
     }
     if (event.target.name === 'font') document.body.dataset.font = event.target.value;
     if (event.target.name === 'spacing') document.body.dataset.spacing = event.target.value;
@@ -1206,10 +953,10 @@
   document.getElementById('assistant-toggle').innerHTML = icon('chat') + '<span>¿Te ayudo?</span>';
   window.addEventListener('pagehide', () => {
     clearTicketPhoto();
-    disposeMaps();
+    AparkaMaps.destroy();
   });
   window.addEventListener('pageshow', event => {
-    if (event.persisted) mountMaps();
+    if (event.persisted) render();
   });
   let lastAvailability = '';
   setInterval(() => {
@@ -1221,6 +968,7 @@
       const r = M.reading(p, state);
       n.textContent = `${time(r.updatedAt)} · hace ${ageText(r.ageMs)} · ${p.source}`;
     });
+    AparkaMaps.refresh();
     const availability = M.PARKINGS.map(p => M.reading(p, state).status).join();
     if (lastAvailability && availability !== lastAvailability && ['map', 'results', 'parking', 'sensor', 'public', 'connection', 'impact'].includes(state.view)) {
       const search = main.querySelector('#destination');

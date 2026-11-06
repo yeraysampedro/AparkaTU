@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#172b22">
+  <meta name="description" content="AparkaTu: aparcamiento accesible, alternativas de movilidad y una Bizkaia con menos vueltas.">
+  <title>AparkaTu · Muévete mejor</title>
+  <link rel="stylesheet" href="assets/leaflet/leaflet.css">
+  <link rel="stylesheet" href="assets/maplibre/maplibre-gl.css">
+  <link rel="stylesheet" href="styles.css">
+  <script src="assets/leaflet/leaflet.js" defer></script>
+  <script src="assets/maplibre/maplibre-gl.js" defer></script>
+  <script src="assets/maplibre/leaflet-maplibre-gl.js" defer></script>
+  <script src="model.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Saltar al contenido</a>
+  <aside class="sidebar" id="sidebar">
+    <a class="brand" href="#map" aria-label="AparkaTu, inicio">aparka<span>Tu.</span></a>
+    <p class="brand-caption">MENOS VUELTAS. MÁS CIUDAD.</p>
+    <div class="region"><span class="status-dot"></span> Bizkaia <span class="region-label">Movilidad local</span></div>
+    <nav id="main-nav" aria-label="Navegación principal"></nav>
+    <div class="sidebar-bottom">
+      <div class="sidebar-message"><span id="sidebar-leaf"></span><strong>Una ciudad para todos.</strong><p>Cada alternativa cuenta. También la tuya.</p></div>
+      <a class="sidebar-link" href="#privacy">Privacidad y transparencia</a>
+      <span class="version">AparkaTu · Versión local</span>
+    </div>
+  </aside>
+  <div class="page-shell">
+    <header class="topbar">
+      <button id="menu-button" class="icon-button mobile-menu" data-action="menu" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar"></button>
+      <div class="breadcrumb"><span>Bizkaia</span><span class="breadcrumb-divider">/</span><strong id="breadcrumb-current">Explorar</strong></div>
+      <div class="topbar-actions">
+        <span class="demo-label"><span class="status-dot"></span> Datos de ejemplo</span>
+        <button id="theme-button" class="icon-button" data-action="toggle-theme" aria-label="Activar modo nocturno" aria-pressed="false" title="Activar modo nocturno"></button>
+        <button id="notification-button" class="icon-button notification-button" data-action="go" data-view="alerts" aria-label="Ver avisos"></button>
+        <button class="profile-button" data-action="go" data-view="profile"><span class="avatar">TÚ</span><span>Mi perfil</span></button>
+      </div>
+    </header>
+    <main id="main" class="main-content" tabindex="-1"></main>
+    <footer class="site-footer"><span>AparkaTu · Movilidad más humana en Bizkaia.</span><span>Información orientativa. Nunca una reserva.</span></footer>
+  </div>
+  <button id="menu-backdrop" class="menu-backdrop" data-action="close-menu" aria-label="Cerrar menú" hidden></button>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="modal" aria-labelledby="modal-title"></dialog>
+  <section id="assistant-panel" class="assistant-panel" aria-labelledby="assistant-title" hidden>
+    <header class="assistant-header">
+      <div><h2 id="assistant-title">Tu asistente de movilidad</h2><p>Ayuda local · sin conexión a una IA externa</p></div>
+      <button class="icon-button" data-action="close-assistant" aria-label="Cerrar asistente">×</button>
+    </header>
+    <div id="assistant-log" class="assistant-log" role="log" aria-live="polite" aria-label="Conversación con el asistente"></div>
+    <div class="assistant-suggestions">
+      <button data-action="ask-assistant" data-id="eventos">Eventos cercanos</button>
+      <button data-action="ask-assistant" data-id="zonas">Estado de zonas</button>
+      <button data-action="ask-assistant" data-id="barik">Barik y tickets</button>
+      <button data-action="ask-assistant" data-id="guia">Cómo empezar</button>
+    </div>
+    <form id="assistant-form" class="assistant-form">
+      <label class="sr-only" for="assistant-input">Tu pregunta</label>
+      <input id="assistant-input" name="question" maxlength="400" required autocomplete="off" placeholder="¿En qué puedo ayudarte?">
+      <button class="button small" type="submit">Enviar</button>
+    </form>
+    <p class="assistant-disclaimer">Respuestas guiadas con datos de ejemplo. No guardamos la conversación.</p>
+  </section>
+  <button id="assistant-toggle" class="assistant-toggle" data-action="toggle-assistant" aria-expanded="false" aria-controls="assistant-panel" aria-label="Abrir asistente de movilidad"></button>
+  <noscript><div class="noscript">Activa JavaScript para consultar el mapa, comparar rutas y utilizar los filtros de AparkaTu.</div></noscript>
+</body>
+</html>

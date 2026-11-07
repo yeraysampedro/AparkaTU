@@ -15,6 +15,7 @@ const AparkaMaps = (() => {
   ];
   const views = new Map();
   const live = new Set();
+  let mapSequence = 0;
   let webglAvailable;
   const colors = () => getComputedStyle(document.body);
   const theme = () => document.body.dataset.theme === 'dark' ? 'dark' : 'light';
@@ -111,11 +112,11 @@ const AparkaMaps = (() => {
     }
   }
   function popupContent(record, parking) {
-    const reading = M.reading(parking, record.state);
+    const reading = M.parkingStatus(parking, record.state);
     const content = node('div', 'parking-map-popup');
     content.append(node('strong', '', parking.name));
-    content.append(node('p', reading.available === null ? 'popup-availability unknown' : 'popup-availability',
-      reading.available === null ? 'Disponibilidad desconocida' : `${reading.available} plazas orientativas`));
+    content.append(node('p', `popup-availability ${reading.kind}`,
+      reading.available === null ? 'Disponibilidad desconocida' : `${reading.available} plazas · ${reading.label}`));
     content.append(node('p', '', parking.mapReference));
     content.append(node('p', 'popup-freshness', `${parking.sensor.id} · ${stamp(reading.updatedAt)} · hace ${elapsed(reading.ageMs)}`));
     content.append(node('p', 'footnote', 'Plazas y sensores simulados. El marcador no señala una entrada verificada.'));
@@ -129,10 +130,12 @@ const AparkaMaps = (() => {
     return content;
   }
   function markerIcon(parking, reading) {
-    const label = node('div', 'parking-map-pin' + (reading.available === null ? ' is-unknown' : ''));
-    label.append(node('span', 'parking-map-kind', parking.type === 'pr' ? 'P+R' : 'P'));
-    label.append(node('strong', '', reading.available === null ? '?' : String(reading.available)));
-    return L.divIcon({ className: 'parking-map-marker', html: label, iconSize: [66, 38], iconAnchor: [33, 38], popupAnchor: [0, -35] });
+    const label = node('div', `parking-map-pin is-${reading.kind}`);
+    const count = node('div', 'parking-map-count');
+    count.append(node('span', 'parking-map-kind', parking.type === 'pr' ? 'P+R' : 'P'));
+    count.append(node('strong', '', reading.available === null ? '?' : String(reading.available)));
+    label.append(count, node('span', 'parking-map-status', reading.label));
+    return L.divIcon({ className: 'parking-map-marker', html: label, iconSize: [104, 55], iconAnchor: [52, 55], popupAnchor: [0, -52] });
   }
   function syncMarkers(record) {
     const focus = M.PARKINGS.find(p => p.id === record.wrapper.dataset.mapFocus);
@@ -145,7 +148,7 @@ const AparkaMaps = (() => {
       }
     }
     for (const parking of selected) {
-      const reading = M.reading(parking, record.state);
+      const reading = M.parkingStatus(parking, record.state);
       let item = record.markers.get(parking.id);
       if (!item) {
         const label = `${parking.name}: ${reading.available === null ? 'disponibilidad desconocida' : reading.available + ' plazas orientativas'}. Datos de ejemplo.`;
@@ -153,26 +156,31 @@ const AparkaMaps = (() => {
           icon: markerIcon(parking, reading), keyboard: true, title: label, alt: label,
           riseOnHover: true, autoPanOnFocus: true
         }).addTo(record.map);
-        marker.bindTooltip(parking.name, { direction: 'top', offset: [0, -36] });
+        marker.bindTooltip(parking.name, { direction: 'top', offset: [0, -54] });
         marker.bindPopup(() => popupContent(record, parking), { minWidth: 205, maxWidth: 280 });
         marker.on('popupopen', () => {
           const close = marker.getPopup().getElement().querySelector('.leaflet-popup-close-button');
           if (close) close.setAttribute('aria-label', 'Cerrar detalle');
         });
-        item = { marker, available: reading.available };
+        item = { marker, available: reading.available, kind: reading.kind };
         record.markers.set(parking.id, item);
-      } else if (item.available !== reading.available) {
+      } else if (item.available !== reading.available || item.kind !== reading.kind) {
         item.marker.setIcon(markerIcon(parking, reading));
         item.available = reading.available;
+        item.kind = reading.kind;
       }
       const iconElement = item.marker.getElement();
       if (iconElement) {
-        const label = `${parking.name}: ${reading.available === null ? 'disponibilidad desconocida' : reading.available + ' plazas orientativas'}. Datos de ejemplo.`;
+        const label = `${parking.name}: ${reading.available === null ? 'disponibilidad desconocida' : `${reading.available} plazas · ${reading.label}`}. Datos de ejemplo.`;
         iconElement.title = label;
         iconElement.setAttribute('aria-label', label);
       }
       if (item.marker.isPopupOpen()) {
-        const fresh = item.marker.getPopup().getElement().querySelector('.popup-freshness');
+        const popup = item.marker.getPopup().getElement();
+        const availability = popup.querySelector('.popup-availability');
+        availability.className = `popup-availability ${reading.kind}`;
+        availability.textContent = reading.available === null ? 'Disponibilidad desconocida' : `${reading.available} plazas · ${reading.label}`;
+        const fresh = popup.querySelector('.popup-freshness');
         if (fresh) fresh.textContent = `${parking.sensor.id} · ${stamp(reading.updatedAt)} · hace ${elapsed(reading.ageMs)}`;
       }
     }
@@ -187,13 +195,81 @@ const AparkaMaps = (() => {
     for (const zone of ZONES) {
       const color = css.getPropertyValue(unknown ? '--muted' : zone.type === 'high' ? '--risk' : '--calm').trim();
       const fill = css.getPropertyValue(unknown ? '--gray-soft' : zone.type === 'high' ? '--risk-soft' : '--calm-soft').trim();
-      L.polygon(zone.points, { color, fillColor: fill, fillOpacity: .32, weight: 2, dashArray: '5 5', interactive: false }).addTo(record.zones);
+      if (!unknown) {
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        const id = `pressure-${record.sequence}-${zone.type}`;
+        svg.setAttribute('viewBox', '0 0 200 200');
+        svg.setAttribute('aria-hidden', 'true');
+        svg.innerHTML = `<defs><radialGradient id="${id}"><stop offset="0%" stop-color="${color}" stop-opacity=".55"/><stop offset="50%" stop-color="${color}" stop-opacity=".26"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/></radialGradient></defs><ellipse cx="100" cy="100" rx="100" ry="100" fill="url(#${id})"/>`;
+        L.svgOverlay(svg, L.latLngBounds(zone.points), { interactive: false }).addTo(record.zones);
+      }
+      L.polygon(zone.points, { color, fillColor: fill, fillOpacity: unknown ? .32 : .1, weight: 2, dashArray: '5 5', interactive: false }).addTo(record.zones);
       const label = node('span', `pressure-map-label ${unknown ? 'unknown' : zone.type}`, unknown ? '? · Sin datos' : zone.label);
       L.marker(zone.center, {
         icon: L.divIcon({ className: 'pressure-map-marker', html: label, iconSize: [128, 26], iconAnchor: [64, 13] }),
         interactive: false, keyboard: false
       }).addTo(record.zones);
     }
+  }
+  function environmentPopup(title, detail, note) {
+    const content = node('div', 'environment-popup');
+    content.append(node('strong', '', title), node('p', '', detail), node('p', 'footnote', note));
+    return content;
+  }
+  function syncEnvironment(record) {
+    const selected = record.state.environmentLayers;
+    const airStates = M.ENVIRONMENT.air.map(station => M.airReading(station, record.state));
+    const signature = [selected.refuges, selected.air, selected.shade, theme(), ...airStates.map(r => r.status)].join('|');
+    if (signature !== record.environmentSignature) {
+      record.environmentSignature = signature;
+      record.environment.clearLayers();
+      record.airMarkers = [];
+      if (selected.refuges) {
+        for (const place of M.ENVIRONMENT.refuges) {
+          const label = node('span', 'environment-map-pin refuge-pin', 'R');
+          const marker = L.marker(place.coordinates, { icon: L.divIcon({ className: 'environment-map-marker', html: label, iconSize: [34, 34], iconAnchor: [17, 34] }), title: `Refugio de referencia: ${place.name}`, alt: `Refugio de referencia: ${place.name}`, keyboard: true });
+          marker.bindTooltip(place.name);
+          marker.bindPopup(() => environmentPopup(place.name, place.detail, 'BateraTU · ubicación de referencia, no un refugio certificado en tiempo real.'));
+          marker.addTo(record.environment);
+          marker.getElement().setAttribute('aria-label', `Refugio climático de referencia: ${place.name}`);
+        }
+      }
+      if (selected.air) {
+        for (const station of M.ENVIRONMENT.air) {
+          const reading = M.airReading(station, record.state);
+          const label = node('span', `environment-map-pin air-pin${reading.value === null ? ' unknown' : ''}`, reading.value === null ? 'A ?' : `A ${reading.value}`);
+          const marker = L.marker(station.coordinates, { icon: L.divIcon({ className: 'environment-map-marker', html: label, iconSize: [48, 34], iconAnchor: [24, 34] }), title: `Calidad del aire · ${station.name} · datos de ejemplo`, keyboard: true });
+          marker.bindPopup(() => {
+            const r = M.airReading(station, record.state);
+            const popup = environmentPopup(`Aire · ${station.name}`, r.value === null ? 'PM₂.₅: desconocido. La lectura no es válida.' : `PM₂.₅: ${r.value} µg/m³ · cifra de ejemplo, no una medición real.`, 'No utilices este dato para decidir si el aire es seguro. Consulta la red oficial.');
+            popup.append(node('p', 'air-reading-age', `${stamp(r.updatedAt)} · hace ${elapsed(r.ageMs)}`));
+            return popup;
+          }).addTo(record.environment);
+          marker.getElement().setAttribute('aria-label', `Calidad del aire en ${station.name}: ${reading.value === null ? 'desconocida' : `${reading.value} microgramos por metro cúbico de PM 2,5, ejemplo`}`);
+          record.airMarkers.push({ station, marker });
+        }
+      }
+      if (selected.shade) {
+        for (const route of M.ENVIRONMENT.shade) {
+          const popup = () => environmentPopup(route.name, route.detail, 'BateraTU · itinerario sombreado de ejemplo. Sigue la señalización y comprueba las condiciones reales.');
+          L.polyline(route.points, { color: theme() === 'dark' ? '#ebc784' : '#855512', weight: 6, dashArray: '10 7' })
+            .bindTooltip(route.name)
+            .bindPopup(popup)
+            .addTo(record.environment);
+          const marker = L.marker(route.points[Math.floor(route.points.length / 2)], {
+            icon: L.divIcon({ className: 'environment-map-marker', html: node('span', 'environment-map-pin shade-pin', 'S'), iconSize: [34, 34], iconAnchor: [17, 34] }),
+            title: `Itinerario sombreado de ejemplo: ${route.name}`, alt: `Itinerario sombreado de ejemplo: ${route.name}`, keyboard: true
+          }).bindPopup(popup).addTo(record.environment);
+          marker.getElement().setAttribute('aria-label', `Itinerario sombreado de ejemplo: ${route.name}`);
+        }
+      }
+    }
+    for (const { station, marker } of record.airMarkers) {
+      if (!marker.isPopupOpen()) continue;
+      const r = M.airReading(station, record.state);
+      marker.getPopup().getElement().querySelector('.air-reading-age').textContent = `${stamp(r.updatedAt)} · hace ${elapsed(r.ageMs)}`;
+    }
+    for (const input of record.wrapper.querySelectorAll('[data-map-layer]')) input.checked = selected[input.dataset.mapLayer];
   }
   function remember(record) {
     if (!record.map || record.closed) return;
@@ -218,7 +294,7 @@ const AparkaMaps = (() => {
   }
   function mount(root, state, onParking) {
     for (const wrapper of root.querySelectorAll('[data-leaflet-map]')) {
-      const record = { wrapper, state, onParking, key: wrapper.dataset.mapKey, markers: new Map(), pressure: true, closed: false, failed: false, theme: theme() };
+      const record = { wrapper, state, onParking, key: wrapper.dataset.mapKey, sequence: ++mapSequence, markers: new Map(), airMarkers: [], pressure: true, closed: false, failed: false, theme: theme() };
       live.add(record);
       if (!window.L || !window.maplibregl || typeof L.maplibreGL !== 'function') {
         mapError(record, 'Faltan archivos del mapa. Mantén la carpeta assets junto a la página.');
@@ -250,8 +326,10 @@ const AparkaMaps = (() => {
         record.map.attributionControl.setPrefix('<a href="https://leafletjs.com/" target="_blank" rel="noreferrer">Leaflet</a>');
         record.map.attributionControl.addAttribution(ATTRIBUTION);
         record.zones = L.layerGroup();
+        record.environment = L.layerGroup().addTo(record.map);
         if (record.pressure) record.zones.addTo(record.map);
         syncZones(record);
+        syncEnvironment(record);
         syncMarkers(record);
         record.map.on('moveend zoomend', () => remember(record));
         record.base = L.maplibreGL({
@@ -278,6 +356,12 @@ const AparkaMaps = (() => {
           if (command === 'retry') loadStyle(record);
         };
         record.onChange = event => {
+          const layer = event.target.dataset.mapLayer;
+          if (layer && Object.hasOwn(record.state.environmentLayers, layer)) {
+            record.state.environmentLayers[layer] = event.target.checked;
+            syncEnvironment(record);
+            return;
+          }
           if (event.target.dataset.mapCommand !== 'pressure') return;
           record.pressure = event.target.checked;
           if (record.pressure) record.zones.addTo(record.map);
@@ -303,6 +387,7 @@ const AparkaMaps = (() => {
     for (const record of live) {
       if (record.closed || !record.gl) continue;
       syncZones(record);
+      syncEnvironment(record);
       if (record.theme !== theme()) loadStyle(record);
     }
   }
@@ -311,6 +396,7 @@ const AparkaMaps = (() => {
       if (record.closed || !record.map || !record.zones) continue;
       syncMarkers(record);
       syncZones(record);
+      syncEnvironment(record);
     }
   }
   window.addEventListener('offline', () => {

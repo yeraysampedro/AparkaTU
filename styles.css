@@ -201,3 +201,120 @@ body[data-spacing=wide] .live-map .leaflet-popup-content p { line-height: 2; }
   .geographic-map-status { flex-wrap: wrap; }
   .live-map .leaflet-control-attribution { max-width: 285px; }
 }
+:root { --blue: #215aa8; --blue-soft: #e6effc; --blue-action: #215aa8; }
+body[data-theme=dark] { --blue: #9cc5ff; --blue-soft: #25394e; --blue-action: #245c9e; }
+body[data-vision=standard] { --calm: #215aa8; --calm-soft: #e6effc; }
+body[data-theme=dark][data-vision=standard] { --calm: #9cc5ff; --calm-soft: #25394e; }
+.topbar { position: sticky; top: 0; z-index: 20; }
+.main-content { scroll-margin-top: 90px; }
+.sidebar { overflow-y: auto; }
+.nav-copy { min-width: 0; display: grid; gap: 2px; }
+.nav-copy strong { font-size: 13px; font-weight: 600; }
+.nav-copy small { color: var(--muted); font-size: 10px; font-weight: 400; }
+.nav-item { min-height: 53px; padding-top: 9px; padding-bottom: 9px; }
+.points-button { display: flex; align-items: center; gap: 9px; min-height: 39px; border: 0; border-radius: 10px; padding: 8px 13px; background: var(--green-action); color: #fff; white-space: nowrap; }
+.points-module { font-size: 11px; }
+#header-points { font-size: 14px; font-weight: 650; }
+.module-name { text-transform: none; letter-spacing: .01em; }
+.button.contrast { background: #172b22; color: #fff; border-color: #172b22; }
+body[data-theme=dark] .button.contrast { background: #e7eee8; color: #172b22; border-color: #e7eee8; }
+.button.blue { background: var(--blue-action); border-color: var(--blue-action); color: #fff; }
+.route-recommendation h3 { margin-top: 14px; }
+.mode-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; margin: 18px 0; }
+.mode-block { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 10px; padding: 12px 5px; display: flex; flex-direction: column; align-items: center; gap: 7px; text-align: center; min-width: 0; }
+.mode-block span { font-size: 10px; }
+.mode-block strong { font-size: 18px; letter-spacing: -.03em; }
+.mode-block small { font-size: 9px; font-weight: 600; }
+.mode-block.mode-metro { background: var(--green-soft); color: var(--green); }
+.mode-block.mode-bike { background: var(--blue-soft); color: var(--blue); }
+.mode-block.fastest { border: 2px solid currentColor; padding: 11px 4px; }
+.route-card.mode-bike .mode-symbol { background: var(--blue-soft); color: var(--blue); }
+.route-card.mode-bike .route-time { color: var(--blue); }
+.route-card.mode-metro .mode-symbol { background: var(--green-soft); color: var(--green); }
+.preventive-alert { border: 2px solid var(--amber); }
+body[data-theme=dark] .preventive-alert { border-color: var(--amber); }
+.quick-community h3 { margin: 9px 0 15px; }
+.compact-report-form { gap: 12px; }
+.compact-report-form .field select { font-size: 11px; }
+.compact-report-form .toggle { padding: 8px 0; }
+.availability.full strong, .availability.full small, .live-map .popup-availability.full { color: var(--red); }
+.availability.recommended small { color: var(--green); font-weight: 600; }
+.parking-map-pin { width: 104px; height: 55px; display: flex; flex-direction: column; gap: 1px; border-radius: 11px 11px 11px 2px; padding: 4px; }
+.parking-map-count { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.parking-map-count strong { font-size: 19px; line-height: 1.15; }
+.parking-map-status { font-size: 10px; font-weight: 550; line-height: 1.5; }
+.parking-map-pin.is-full { background: var(--red-action); }
+.parking-map-pin.is-available { background: var(--blue-action); }
+.environment-filters { border-bottom: 1px solid var(--line); background: var(--surface-soft); }
+.environment-filters summary { cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 13px 15px; font-size: 11px; min-height: 44px; }
+.environment-filters summary:after { content: '+'; margin-left: auto; font-size: 18px; }
+.environment-filters[open] summary:after { content: '−'; }
+.environment-filters summary strong { color: var(--green); font-size: 14px; }
+.environment-filters summary span { color: var(--muted); }
+.environment-options { display: flex; gap: 12px; flex-wrap: wrap; padding: 2px 15px 10px; }
+.environment-options label { display: flex; align-items: center; gap: 6px; min-height: 34px; font-size: 11px; }
+.environment-options input { accent-color: var(--green-action); width: 16px; height: 16px; }
+.environment-filters p { margin: 0; padding: 0 15px 10px; font-size: 10px; color: var(--muted); }
+.environment-key { display: flex; gap: 12px; flex-wrap: wrap; padding: 0 15px 14px; font-size: 10px; color: var(--muted); }
+.environment-map-marker { background: transparent; border: 0; }
+.environment-map-pin { display: grid; place-items: center; height: 34px; border: 2px solid var(--surface); border-radius: 50%; font-size: 13px; font-weight: 650; color: #fff; box-shadow: 0 2px 7px #0003; }
+.refuge-pin { width: 34px; background: var(--green-action); }
+.air-pin { width: 48px; border-radius: 8px; background: var(--blue-action); }
+.air-pin.unknown { background: #56675d; }
+.shade-pin { width: 34px; background: #855512; }
+.pressure-spectrum { display: inline-block; height: 7px; width: 74px; border-radius: 5px; background: linear-gradient(90deg, var(--calm), var(--risk)); }
+.environment-popup strong { display: block; margin-bottom: 9px; }
+.personal-impact { scroll-margin-top: 100px; }
+.impact-equivalence { padding: 16px; margin-top: 20px; border: 1px solid var(--line); border-radius: 11px; background: var(--green-soft); }
+.impact-equivalence strong { color: var(--green); font-size: 13px; }
+.impact-equivalence p { margin: 8px 0 0; color: var(--muted); font-size: 11px; line-height: 1.8; }
+.impact-milestones { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 20px; }
+.milestone { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; font-size: 11px; border: 1px solid var(--line); border-radius: 11px; padding: 13px; color: var(--muted); }
+.milestone.achieved { border-color: var(--green); color: var(--green); background: var(--green-soft); }
+.milestone small { font-size: 10px; }
+.milestone-progress { margin: 17px 0; color: var(--muted); }
+.milestone-progress progress { width: 100%; height: 12px; accent-color: var(--green-action); }
+.forum-notice { margin-bottom: 22px; }
+.forum-card h2 { margin: 16px 0 10px; }
+.thread-title { padding: 0; border: 0; background: transparent; text-align: left; font: inherit; color: var(--ink); }
+.thread-title:hover { text-decoration: underline; text-underline-offset: 3px; }
+.forum-card p, .forum-message p, .forum-reply p { font-size: 13px; line-height: 1.8; white-space: pre-line; overflow-wrap: anywhere; }
+.forum-card p { color: var(--muted); margin-bottom: 12px; }
+.forum-card .forum-availability, .forum-message .forum-availability { display: flex; align-items: center; gap: 9px; color: var(--green); font-size: 12px; }
+.forum-availability .icon { width: 17px; height: 17px; flex-basis: 17px; }
+.forum-card-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 17px; }
+.forum-card-footer > span { font-size: 10px; color: var(--muted); }
+.forum-message > p { margin: 18px 0; }
+.forum-message .footnote { font-size: 11px; color: var(--muted); margin-bottom: 0; }
+.forum-replies { margin-bottom: 20px; }
+.forum-reply { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.forum-reply strong { font-size: 12px; }
+.forum-reply > span { font-size: 10px; color: var(--muted); margin-left: 12px; }
+.forum-reply p { margin: 10px 0 0; color: var(--muted); }
+.assistant-panel { width: 410px; }
+.assistant-header h2 { font-size: 18px; }
+.assistant-header p, .assistant-disclaimer { font-size: 11px; }
+.chat-message, .chat-message p { font-size: 15px; line-height: 1.65; }
+.assistant-form input { font-size: 14px; }
+.assistant-suggestions button { font-size: 12px; min-height: 38px; }
+@media(min-width:1011px) {
+  .map-layout { grid-template-columns: minmax(0, 2fr) minmax(290px, 1fr); }
+}
+@media(max-width:1010px) and (min-width:761px) {
+  .map-side .quick-community { grid-column: 1 / -1; }
+  .map-side > .card:first-child { grid-row: auto; }
+}
+@media(max-width:760px) {
+  .topbar { gap: 8px; }
+  .topbar .demo-label { display: none; }
+  .points-button { min-height: 35px; padding: 7px 9px; }
+  .points-module { display: none; }
+  #header-points { font-size: 12px; }
+  .environment-filters summary { align-items: flex-start; gap: 8px; }
+  .environment-filters summary span { max-width: 190px; }
+  .environment-options { display: grid; gap: 4px; }
+  .impact-milestones { grid-template-columns: 1fr; }
+  .milestone { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 10px; }
+  .assistant-header h2 { font-size: 17px; }
+  .compact-report-form .field select { font-size: 13px; }
+}

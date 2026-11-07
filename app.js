@@ -63,21 +63,22 @@
   let photoError = '';
   let photoLoading = false;
   const startTime = performance.now();
-  const modeNames = { metro: 'P+R + Metro', car: 'Solo coche', bike: 'Bici' };
-  const observationNames = { free: 'Plaza libre', occupied: 'Plaza ocupada', verify: 'Lectura del sensor confirmada' };
+  const modeNames = { metro: 'P+R + Metro', car: 'Solo coche', bike: 'Bizkaibizi' };
+  const observationNames = { free: 'Plaza libre', occupied: 'Plaza ocupada', verify: 'Lectura del sensor confirmada', incident: 'Incidencia del sensor o acceso' };
   const visionNames = { standard: 'Visión estándar', deuteranopia: 'Deuteranopía', protanopia: 'Protanopía', tritanopia: 'Tritanopía' };
   const views = {
-    map: ['Explorar', renderMap], search: ['Buscar destino', renderSearch], results: ['Aparcamientos', renderResults],
+    map: ['AurkiTU', renderMap], search: ['AurkiTU · Buscar', renderSearch], results: ['AurkiTU · Resultados', renderResults],
     parking: ['Detalle del aparcamiento', renderParking], profile: ['Mi perfil', renderProfile],
-    compare: ['Cómo llegar', renderCompare], route: ['Mi ruta', renderRoute], drive: ['En camino', renderDrive],
-    arrival: ['Has llegado', renderArrival], alerts: ['Avisos', renderAlerts], event: ['Aviso por evento', renderEvent],
-    heat: ['Aviso de calor', renderHeat], report: ['Comunidad', renderReport], pending: ['Reporte recibido', renderPending],
-    validated: ['Gracias por colaborar', renderValidated], rewards: ['Mi movilidad', renderRewards], redeemed: ['Canje completado', renderRedeemed],
+    compare: ['GidaTU', renderCompare], route: ['GidaTU · Mi ruta', renderRoute], drive: ['GidaTU · En camino', renderDrive],
+    arrival: ['Has llegado', renderArrival], alerts: ['AurreraTU', renderAlerts], event: ['AurreraTU · Evento', renderEvent],
+    heat: ['AurreraTU · Calor', renderHeat], report: ['PartekaTU', renderReport], pending: ['Reporte recibido', renderPending],
+    validated: ['Reporte validado', renderValidated], rewards: ['SariTU', renderRewards], redeemed: ['SariTU · Canje completado', renderRedeemed],
     settings: ['Accesibilidad', renderSettings], reading: ['Lectura accesible', renderReading], privacy: ['Privacidad', renderPrivacy],
     connection: ['Estado de la información', renderConnection], location: ['Ubicación opcional', renderLocation],
-    public: ['Panel público', renderPublic], impact: ['Impacto', renderImpact], welcome: ['Bienvenido', renderWelcome],
+    public: ['Panel público', renderPublic], impact: ['AurrezTU', renderImpact], welcome: ['Bienvenido', renderWelcome],
     sensor: ['Procedencia del dato', renderSensor], barik: ['Mi Barik', renderBarik],
-    ticket: ['Acreditar P+R + Metro', renderTicket], 'ticket-status': ['Estado del justificante', renderTicketStatus]
+    ticket: ['Acreditar P+R + Metro', renderTicket], 'ticket-status': ['Estado del justificante', renderTicketStatus],
+    forum: ['PartekaTU · Foro', renderForum], thread: ['PartekaTU · Conversación', renderThread]
   };
   function button(label, action, options = {}) {
     const { kind = '', view = '', id = '', disabled = false, full = false, small = false, glyph = '' } = options;
@@ -85,7 +86,7 @@
   }
   const goButton = (label, view, options = {}) => button(label, 'go', { ...options, view });
   function heading(title, subtitle, actions = '', eyebrow = '') {
-    return `<div class="page-heading"><div>${eyebrow ? `<p class="eyebrow green" style="margin-bottom:9px">${e(eyebrow)}</p>` : ''}<h1>${e(title)}</h1><p class="optional-detail">${e(subtitle)}</p></div>${actions ? `<div class="heading-actions">${actions}</div>` : ''}</div>`;
+    return `<div class="page-heading"><div>${eyebrow ? `<p class="eyebrow green module-name" style="margin-bottom:9px">${e(eyebrow)}</p>` : ''}<h1>${e(title)}</h1><p class="optional-detail">${e(subtitle)}</p></div>${actions ? `<div class="heading-actions">${actions}</div>` : ''}</div>`;
   }
   const back = (view = 'map', label = 'Volver') => `<button class="back-link" data-action="go" data-view="${e(view)}">${icon('back')}${e(label)}</button>`;
   function card(tone, label, title, text, foot = '', action = '') {
@@ -130,10 +131,10 @@
     return `<div style="margin-bottom:20px">${banner(state.dataMode === 'offline' ? 'Sin conexión a la información' : 'Las lecturas ya no son válidas', 'La disponibilidad figura como desconocida. No usamos datos antiguos como plazas libres.', 'offline', 'unknown', button('Actualizar', 'refresh', { kind: 'secondary', small: true, glyph: 'refresh' }))}</div>`;
   }
   function parkingRow(parking, publicView = false) {
-    const r = M.reading(parking, state);
+    const r = M.parkingStatus(parking, state);
     const fresh = r.available !== null;
     const compatibility = M.compatible(parking, state.preferences);
-    return `<article class="parking-row"><div class="parking-icon">${parking.type === 'pr' ? 'P+R' : 'P'}</div><div class="parking-info"><h3>${e(parking.name)}</h3><p>${publicView ? e(parking.connection) : `${parking.pmr} PMR · ${parking.walk} m a pie${compatibility ? ' · compatible' : ' · revisa acceso'}`}</p><span class="meta">${freshness(parking)}</span></div><div class="availability ${fresh ? '' : 'unknown'}"><strong>${fresh ? r.available : 'Desconocido'}</strong><small>${fresh ? 'plazas orientativas' : 'no equivale a libre'}</small></div>${publicView ? '' : `<button class="icon-button" data-action="parking" data-id="${e(parking.id)}" aria-label="Ver ${e(parking.name)}">${icon('chevron')}</button>`}</article>`;
+    return `<article class="parking-row"><div class="parking-icon">${parking.type === 'pr' ? 'P+R' : 'P'}</div><div class="parking-info"><h3>${e(parking.name)}</h3><p>${publicView ? e(parking.connection) : `${parking.pmr} PMR · ${parking.walk} m a pie${compatibility ? ' · compatible' : ' · revisa acceso'}`}</p><span class="meta">${freshness(parking)}</span></div><div class="availability ${r.kind}"><strong>${fresh ? r.available : '?'}</strong><small>${e(r.label)}</small></div>${publicView ? '' : `<button class="icon-button" data-action="parking" data-id="${e(parking.id)}" aria-label="Ver ${e(parking.name)}">${icon('chevron')}</button>`}</article>`;
   }
   function mapMarkup(interactive = true, compact = false) {
     const focus = ['parking', 'sensor'].includes(state.view) ? state.selectedParking : '';
@@ -145,25 +146,36 @@
         ${focus ? '<button type="button" data-map-command="focus">Centrar aparcamiento</button>' : ''}
         <label><input type="checkbox" data-map-command="pressure" checked> Presión · ejemplo</label>
       </div>
+      <details class="environment-filters"${Object.values(state.environmentLayers).some(Boolean) ? ' open' : ''}>
+        <summary><strong>BateraTU</strong><span>Refugios, aire y recorridos a la sombra</span></summary>
+        <div class="environment-options">
+          ${[['refuges', 'Refugios climáticos'], ['air', 'Calidad del aire'], ['shade', 'Itinerarios sombreados']].map(([key, label]) => `<label><input type="checkbox" data-map-layer="${key}"${state.environmentLayers[key] ? ' checked' : ''}>${label}</label>`).join('')}
+        </div><p>Capas de ejemplo. Sombra y accesos no verificados; las cifras de aire no son mediciones reales.</p>
+        <div class="environment-key"><span>R · Refugio</span><span>A · PM₂.₅ en µg/m³</span><span>Trazo discontinuo · Paseo a la sombra</span></div>
+      </details>
       <div class="live-map" role="region" aria-label="Mapa interactivo. Usa los botones más y menos para cambiar el zoom y las flechas para desplazarte." tabindex="0"></div>
       <div class="geographic-map-status"><span data-map-status role="status">Cargando cartografía…</span><button type="button" data-map-command="retry" hidden>Reintentar</button></div>
       <p class="geographic-map-note">Calles de OpenStreetMap. Plazas, sensores y zonas de presión de ejemplo. Los marcadores indican ubicaciones aproximadas.</p>
     </section>`;
   }
-  const mapLegend = () => `<div class="map-legend"><div class="legend-items"><span><i class="legend-dot"></i>Baja presión</span><span><i class="legend-triangle"></i>Alta presión</span><span><i class="legend-square"></i>Desconocido</span></div><span>Predicción, no garantía</span></div>`;
+  const mapLegend = () => `<div class="map-legend"><div class="legend-items"><span><i class="legend-dot"></i>Baja presión</span><span><i class="legend-triangle"></i>Alta presión</span><span><i class="legend-square"></i>Desconocido</span></div><span class="pressure-spectrum" aria-hidden="true"></span><span>Predicción simulada, no garantía</span></div>`;
   function searchbar() {
     return `<form id="destination-form" class="searchbar">${icon('search')}<div class="search-field"><label for="destination">¿DÓNDE QUIERES APARCAR?</label><input id="destination" name="destination" value="${e(state.destination)}" placeholder="Una dirección, barrio o destino" maxlength="100" required></div><div class="divider"></div><span class="location-hint">${icon('pin')} ${e(state.origin)}</span><button class="button" type="submit">Buscar ${icon('arrow')}</button></form>`;
   }
   function renderMap() {
-    const recommended = M.journey('metro', state.departure);
+    const alternatives = M.journeyOptions(state);
+    const recommended = alternatives[0];
     const all = M.results(state);
-    return heading('Aparcamientos en Bilbao y Leioa.', 'Consulta el mapa y las opciones del catálogo de ejemplo.', button('Mis preferencias', 'go', { view: 'profile', kind: 'secondary', glyph: 'access' }), 'Mapa de aparcamientos')
+    return heading('Encuentra aparcamiento en Bilbao y Leioa.', 'Revisa el estado, el sensor y la antigüedad de cada lectura.', button('Mis preferencias', 'go', { view: 'profile', kind: 'secondary', glyph: 'access' }), 'AurkiTU · Encontrar')
       + connectionBanner() + searchbar()
       + `<div class="map-layout"><div class="stack"><section class="panel map-panel"><div class="map-filters"><div class="chips"><button class="chip active" data-action="refresh">${icon('clock')} Ahora</button><button class="chip${state.preferences.pmr ? ' active' : ''}" data-action="filters">${icon('access')} PMR</button><button class="chip${state.preferences.preferPr ? ' active' : ''}" data-action="filters">P+R</button><button class="chip" data-action="filters">${icon('sliders')} Filtros</button></div><span class="time-pill">${icon('clock')}<span data-clock>${time(state.now).slice(0, 5)}</span> · ejemplo</span></div>${mapMarkup()}${mapLegend()}</section>
         <div class="section-title" style="margin-top:7px"><h2>Opciones que encajan contigo</h2><button class="mini-link" data-action="go" data-view="results" style="margin:0">Ver todas ${icon('arrow')}</button></div><div class="parking-list">${all.length ? all.slice(0, 2).map(p => parkingRow(p)).join('') : emptyResults()}</div></div>
-        <aside class="stack map-side"><section class="card positive"><div class="recommendation-head">${icon('leaf')} RECOMENDADO PARA TU TRAYECTO</div><h3 style="margin-top:19px">Deja el coche. Gana tiempo.</h3><div class="journey-icons">${icon('car')}<span>→</span>${icon('train')}<span>→</span>${icon('access')}</div><div class="big-time">${recommended.duration} <small>min hasta San Mamés</small></div><p>P+R Leioa + Metro L1 + un paseo.</p><div class="benefit">${icon('check')} ${M.journey('car', state.departure).duration - recommended.duration} min menos que ir solo en coche</div>${goButton('Comparar alternativas', 'compare', { kind: 'green', full: true, glyph: 'arrow' })}<p class="footnote" style="margin-top:13px">Tiempos y plazas de ejemplo. No es una reserva.</p></section>
-        <section class="card warning"><div class="card-icon"><span class="eyebrow">ANTICÍPATE</span>${icon('bell')}</div><h3>San Mamés se llena.</h3><p>Se prevé más presión de 18:00 a 19:00. Mejor decidir antes de entrar.</p><button class="mini-link" data-action="go" data-view="event">Ver aviso y alternativas ${icon('arrow')}</button></section>
-        <section class="card"><div class="card-icon"><span class="eyebrow">INFORMACIÓN HONESTA</span>${icon('shield')}</div><p>Si un dato caduca, pasa a ser desconocido. Nunca te lo mostraremos como libre.</p><button class="mini-link" data-action="go" data-view="privacy">Así cuidamos la información ${icon('arrow')}</button></section></aside></div>`;
+        <aside class="stack map-side"><section class="card positive route-recommendation"><div class="recommendation-head">${icon('train')} GidaTU</div><h3>Alternativa recomendada</h3>
+        <div class="big-time">${recommended.duration} <small>min · ${modeNames[recommended.mode]}</small></div>
+        <div class="mode-summary">${alternatives.map(r => `<button class="mode-block mode-${r.mode}${r.mode === recommended.mode ? ' fastest' : ''}" data-action="select-route" data-id="${r.mode}">${icon(r.mode === 'metro' ? 'train' : r.mode)}<span>${modeNames[r.mode]}</span><strong>${r.duration} min</strong>${r.mode === recommended.mode ? '<small>Más rápida</small>' : ''}</button>`).join('')}</div>
+        ${goButton('Comparar recorridos', 'compare', { kind: 'green', full: true, glyph: 'arrow' })}<p class="footnote" style="margin-top:13px">Incluye búsqueda y tramo a pie. Tiempos simulados para Getxo → San Mamés; no reserva plazas.</p></section>
+        <section class="card warning preventive-alert"><div class="card-icon"><span class="eyebrow module-name">AurreraTU · Aviso preventivo</span>${icon('bell')}</div><h3>Alta ocupación: evento en San Mamés.</h3><p>Previsión de presión alta de 18:00 a 19:00. Considera un P+R antes de entrar en la zona.</p><button class="mini-link" data-action="go" data-view="event">Ver alternativas ${icon('arrow')}</button></section>
+        <section class="panel panel-pad quick-community"><div class="eyebrow green module-name">PartekaTU</div><h3>Red Colaborativa</h3>${reportForm(true)}${goButton('Abrir el foro vecinal', 'forum', { kind: 'quiet', full: true, glyph: 'chat' })}</section></aside></div>`;
   }
   function renderSearch() {
     return back() + heading('Tu próximo destino.', 'Busca en Bizkaia sin guardar un historial de tus trayectos.')
@@ -183,7 +195,9 @@
     const compatible = M.compatible(p, state.preferences);
     const freshnessCard = (r.available === null
       ? card('unknown', 'DESCONOCIDO · NO EQUIVALE A LIBRE', 'No podemos confirmar si hay plazas.', 'La lectura no es válida o no hay conexión. No mostramos la última cifra como disponibilidad.', '', `<div class="footnote" style="margin-top:14px">${freshness(p)}</div>`)
-      : card('positive', 'LECTURA RECIENTE', 'Información útil, sin falsas promesas.', `Rango orientativo: ${p.spaces - p.margin}–${p.spaces + p.margin} plazas. La ocupación puede cambiar antes de que llegues.`, '', `<div class="footnote" style="margin-top:14px">${freshness(p)}</div>`)) + sensorInfo(p);
+      : r.available === 0
+        ? card('danger', 'COMPLETO · ÚLTIMA LECTURA', 'No se indican plazas disponibles.', 'El sensor muestra cero plazas en este escenario. Busca otra opción antes de desplazarte.', '', `<div class="footnote" style="margin-top:14px">${freshness(p)}</div>`)
+        : card('positive', 'LECTURA RECIENTE', 'Disponibilidad orientativa.', `Rango orientativo: ${Math.max(0, p.spaces - p.margin)}–${p.spaces + p.margin} plazas. La ocupación puede cambiar antes de que llegues.`, '', `<div class="footnote" style="margin-top:14px">${freshness(p)}</div>`)) + sensorInfo(p);
     return back('results', 'Volver a los aparcamientos') + heading(p.name, p.connection, `<span class="chip ${compatible ? 'active' : 'red'}">${compatible ? 'Compatible con tu perfil' : 'Revisa las condiciones de acceso'}</span>`)
       + `<div class="split"><div class="stack"><section class="panel map-panel">${mapMarkup(false)}${mapLegend()}</section>${banner('Una plaza indicada no queda reservada.', 'Confirma tarifas, horarios, plazas PMR y señalización con el operador.', 'info', 'neutral')}</div><div class="stack"><div class="metrics two">${metric(r.available === null ? '?' : r.available, r.available === null ? 'Disponibilidad desconocida' : 'Plazas orientativas', r.available === null ? 'Lectura no válida' : `Margen estimado ±${p.margin}`)}${metric(p.pmr, 'Plazas PMR de referencia', 'Confirma al llegar')}</div>${freshnessCard}<section class="panel panel-pad"><h3>Antes de llegar</h3><div class="stack tight"><span class="row">${icon('access')} <span class="small">${p.stepFree ? 'Acceso sin escalones · ejemplo' : 'Consultar barreras de acceso'}</span></span><span class="row">${icon('pin')} <span class="small">${p.walk} m de recorrido a pie</span></span><span class="row">${icon('shield')} <span class="small">${p.residentOnly ? 'Requiere autorización de residente' : 'PMR: requiere tarjeta acreditativa'}</span></span></div></section>${compatible ? button(r.available === null ? 'Ver alternativas con datos válidos' : 'Comparar cómo llegar', 'go', { view: r.available === null ? 'results' : 'compare', full: true, kind: 'green', glyph: 'arrow' }) : button('Revisar mi perfil', 'go', { view: 'profile', full: true, kind: 'secondary' })}${button('Informar sobre esta plaza', 'go', { view: 'report', full: true, kind: 'secondary', glyph: 'users' })}</div></div>`;
   }
@@ -195,23 +209,41 @@
       + `<div class="form-grid" style="margin-top:18px">${selectField('vehicle', 'Distintivo del vehículo', [['B', 'B'], ['C', 'C'], ['ECO', 'ECO'], ['0', 'Cero emisiones']], p.vehicle)}${selectField('maxWalk', 'Distancia máxima a pie', [[50, 'Hasta 50 m'], [100, 'Hasta 100 m'], [300, 'Hasta 300 m'], [600, 'Hasta 600 m']], p.maxWalk)}</div>`;
   }
   function renderProfile() {
-    return heading('Tu movilidad, a tu manera.', 'Solo necesitamos tus preferencias. No tus datos médicos ni una cuenta.')
-      + `<div class="split"><form id="profile-form" class="panel panel-pad"><h2>Condiciones de acceso</h2>${profileFields()}<div class="form-actions">${goButton('Cancelar', 'map', { kind: 'secondary' })}<button class="button" type="submit">Guardar preferencias ${icon('check')}</button></div></form><div class="stack">${card('positive', 'PRIVACIDAD POR DISEÑO', 'Guardado en tu navegador.', 'Solo se guardan opciones de interfaz y acceso. Nunca origen, destino, reportes o trayectos individuales.')}${option('Ver mejor. Leer con más calma.', 'Colores, tipografía e interlineado.', 'access', 'go', 'settings')}${option('Usar sin ubicación', 'Elige tu punto de partida manualmente.', 'pin', 'manual-location')}${banner('La señalización tiene la última palabra.', 'Las condiciones de este catálogo son de ejemplo. Confírmalas con el operador antes de viajar.', 'info', 'neutral')}</div></div>`;
+    return heading('Mi perfil', 'Preferencias de acceso y actividad de esta visita.')
+      + `<div class="split"><div class="stack"><form id="profile-form" class="panel panel-pad"><h2>Condiciones de acceso</h2>${profileFields()}<div class="form-actions">${goButton('Cancelar', 'map', { kind: 'secondary' })}<button class="button" type="submit">Guardar preferencias ${icon('check')}</button></div></form>${personalImpactPanel()}</div>
+      <div class="stack">${card('positive', 'PRIVACIDAD', 'Preferencias guardadas en tu navegador.', 'No guardamos origen, destino, reportes ni trayectos individuales.')}${option('SariTU · Mis puntos', 'Consultar saldo, acreditaciones y canjes Barik.', 'leaf', 'go', 'rewards')}${option('Accesibilidad', 'Colores, tipografía e interlineado.', 'access', 'go', 'settings')}${option('Usar sin ubicación', 'Elige tu punto de partida manualmente.', 'pin', 'manual-location')}${banner('Comprueba las condiciones en destino.', 'Los accesos de este catálogo son ejemplos. Confirma la señalización y las condiciones con el operador.', 'info', 'neutral')}</div></div>`;
+  }
+  function personalImpactPanel() {
+    const impact = M.personalImpact(state);
+    const count = impact.tickets;
+    const next = [1, 3, 5].find(target => target > count) || (Math.floor(count / 5) + 1) * 5;
+    const equivalence = M.MOBILITY_EQUIVALENCE;
+    const co2PerTicket = equivalence.co2Kg.toLocaleString('es-ES');
+    const co2PerPoint = (equivalence.co2Kg / equivalence.points).toLocaleString('es-ES', { maximumFractionDigits: 4 });
+    return `<section class="panel panel-pad personal-impact"><div class="eyebrow green module-name">AurrezTU · Ahorrar</div><h2 style="margin-top:10px">Tu ahorro estimado</h2><p class="small muted">Se calcula con los justificantes intermodales validados durante esta visita.</p>
+      <div class="metrics two">${metric(`${impact.minutes} min`, 'Tiempo de búsqueda evitado', `${equivalence.minutes} min por acreditación · ejemplo`)}${metric(`${impact.co2Kg.toLocaleString('es-ES', { maximumFractionDigits: 1 })} kg`, 'CO₂ equivalente evitado', 'Estimación, no medición')}
+      ${metric(`${impact.mobilityPoints} PTS`, 'Puntos por intermodalidad', 'Acumulados antes de canjear')}${metric(count, 'Justificantes validados', 'No incluye reportes ciudadanos')}</div>
+      <div class="impact-equivalence"><strong>${equivalence.points} PTS de movilidad ≈ ${co2PerTicket} kg de CO₂</strong><p>Factor ilustrativo de esta demo: ${co2PerPoint} kg por punto intermodal. No es una equivalencia oficial de Barik. Los puntos iniciales y los reportes no cuentan como ahorro de emisiones; canjear puntos no borra el acumulado.</p></div>
+      <div class="impact-milestones" aria-label="Hitos de intermodalidad">${[[1, 'Primer justificante'], [3, 'Tres usos acreditados'], [5, 'Cinco usos acreditados']].map(([target, label]) => `<span class="milestone${count >= target ? ' achieved' : ''}">${icon(count >= target ? 'check' : 'clock')}${label}<small>${count >= target ? 'Completado' : `${Math.min(count, target)} de ${target}`}</small></span>`).join('')}</div>
+      <label class="field milestone-progress">Progreso: ${count} de ${next} acreditaciones<progress max="${next}" value="${Math.min(count, next)}">${count} de ${next}</progress></label>
+      ${goButton('Ver el impacto agregado en AurrezTU', 'impact', { kind: 'quiet', full: true, glyph: 'chart' })}</section>`;
   }
   function renderCompare() {
-    const savings = M.journey('car', state.departure).duration - M.journey('metro', state.departure).duration;
-    const routeCards = ['metro', 'car', 'bike'].map(mode => {
-      const r = M.journey(mode, state.departure);
+    const alternatives = M.journeyOptions(state);
+    const fastest = alternatives[0];
+    const savings = M.journey('car', state.departure).duration - fastest.duration;
+    const routeCards = alternatives.map(r => {
+      const mode = r.mode;
       const descriptions = {
         metro: '8 min conduciendo + 2 para aparcar + 17 en Metro + 4 a pie.',
         car: `23 min conduciendo + ${r.steps[1].minutes} buscando plaza + 6 a pie.`,
-        bike: '34 min pedaleando + 2 a pie. Revisa el aviso de calor antes de salir.'
+        bike: '34 min pedaleando + 2 a pie. Bizkaibizi: recorrido de referencia; bicicletas y estaciones no verificadas.'
       };
-      return `<article class="panel route-card${mode === 'metro' ? ' recommended' : ''}">${mode === 'metro' ? '<span class="route-tag">NUESTRA RECOMENDACIÓN</span>' : ''}<div class="mode-symbol">${icon(mode === 'metro' ? 'train' : mode)}</div><h3>${modeNames[mode]}</h3><div class="route-time">${r.duration} <span>min</span></div><span class="small muted">Llegada ${r.arrival} · margen ±${r.uncertainty} min</span><p class="small muted" style="margin-top:20px">${descriptions[mode]}</p>${mode !== 'car' ? `<span class="benefit">${icon('leaf')} ${mode === 'metro' ? '+30 puntos al validar ticket P+R y Barik · ejemplo' : 'Movilidad activa, sin puntos automáticos'}</span>` : '<span class="footnote" style="margin-bottom:15px">Incluye búsqueda: no solo conducción.</span>'}${button(`Elegir ${modeNames[mode]}`, 'select-route', { id: mode, kind: mode === 'metro' ? 'green' : 'secondary', full: true, glyph: 'arrow' })}</article>`;
+      return `<article class="panel route-card mode-${mode}${mode === fastest.mode ? ' recommended' : ''}">${mode === fastest.mode ? '<span class="route-tag">ALTERNATIVA MÁS RÁPIDA</span>' : ''}<div class="mode-symbol">${icon(mode === 'metro' ? 'train' : mode)}</div><h3>${modeNames[mode]}</h3><div class="route-time">${r.duration} <span>min</span></div><span class="small muted">Llegada ${r.arrival} · margen ±${r.uncertainty} min</span><p class="small muted" style="margin-top:20px">${descriptions[mode]}</p>${mode !== 'car' ? `<span class="benefit">${icon('leaf')} ${mode === 'metro' ? '+30 puntos al validar ticket P+R y Barik · ejemplo' : 'Movilidad activa, sin puntos automáticos'}</span>` : '<span class="footnote" style="margin-bottom:15px">Incluye búsqueda: no solo conducción.</span>'}${button(`Elegir ${modeNames[mode]}`, 'select-route', { id: mode, kind: mode === 'metro' ? 'green' : mode === 'bike' ? 'blue' : 'secondary', full: true, glyph: 'arrow' })}</article>`;
     }).join('');
-    return heading('El mejor camino no siempre es en coche.', 'Compara el trayecto completo y elige lo que te compense.', goButton('Cambiar destino', 'search', { kind: 'secondary', glyph: 'pin' }))
+    return heading('Compara cómo llegar.', 'Tiempo total de conducción, búsqueda, transporte público y tramo a pie.', goButton('Cambiar destino', 'search', { kind: 'secondary', glyph: 'pin' }), 'GidaTU · Guiar')
       + connectionBanner() + `<div class="panel panel-pad" style="margin-bottom:22px"><form id="departure-form" class="row" style="justify-content:space-between"><div class="row">${icon('pin')}<strong style="font-size:13px">${e(state.origin)} → ${e(state.destination)}</strong><span class="chip">Recorrido de referencia</span></div><div class="row"><label class="field" style="display:flex;align-items:center;gap:10px">Salida <input type="time" name="departure" value="${e(state.departure)}" required style="width:110px"></label><button class="button secondary small" type="submit">Actualizar</button></div></form></div>`
-      + `<div style="margin-bottom:22px">${banner(`P+R + Metro te ahorra ${savings} minutos.`, 'Menos búsqueda de aparcamiento. Más tiempo para lo que venías a hacer.', 'leaf', 'neutral')}</div><div class="three-col">${routeCards}</div><p class="footnote" style="margin-top:21px">Duraciones simuladas para el recorrido de referencia Getxo → San Mamés. No se recalculan geográficamente para otras direcciones. Los puntos son un incentivo conceptual; no tienen valor real.</p>`;
+      + `<div style="margin-bottom:22px">${banner(`${modeNames[fastest.mode]}: ${fastest.duration} min en total.`, savings > 0 ? `${savings} minutos menos que ir solo en coche en este escenario.` : 'Es la alternativa de menor duración en este escenario.', 'clock', 'neutral')}</div><div class="three-col">${routeCards}</div><p class="footnote" style="margin-top:21px">Duraciones simuladas para Getxo → San Mamés. No se recalculan geográficamente para otras direcciones. Se prioriza la menor duración; no se garantiza una plaza ni la disponibilidad de Bizkaibizi.</p>`;
   }
   function renderRoute() {
     const r = M.journey(state.selectedMode, state.departure);
@@ -228,7 +260,7 @@
     return `<div class="narrow"><section class="panel empty-state"><div class="success-symbol">${icon('check')}</div><div class="eyebrow green">RECORRIDO COMPLETADO</div><h1 style="margin-top:15px">Ya estás donde querías.</h1><p>Gracias por elegir cómo moverte con más calma. Finalizar un recorrido no acredita su uso ni suma puntos automáticamente.</p>${state.selectedMode === 'metro' ? `<p>Para sumar 30 puntos de ejemplo, vincula tu Barik personalizada y presenta la fotografía del ticket del parking disuasorio.</p>` : ''}<div class="row">${state.selectedMode === 'metro' ? goButton('Acreditar P+R + Metro', state.barik ? 'ticket' : 'barik', { kind: 'green', glyph: 'upload' }) : goButton('Ver mi movilidad', 'rewards', { kind: 'green', glyph: 'leaf' })}${goButton('Volver a explorar', 'map', { kind: 'secondary' })}</div><p class="footnote" style="margin-top:22px">No se ha registrado ni validado un trayecto real.</p></section></div>`;
   }
   function renderAlerts() {
-    return heading('Un aviso a tiempo cambia el viaje.', 'Anticípate a los eventos y al calor antes de entrar en una zona de presión.', goButton('Preferencias de avisos', 'settings', { kind: 'secondary', glyph: 'sliders' }))
+    return heading('Avisos antes de llegar.', 'Eventos y calor que pueden afectar a tu trayecto.', goButton('Preferencias de avisos', 'settings', { kind: 'secondary', glyph: 'sliders' }), 'AurreraTU · Anticipar')
       + (!state.preferences.alerts ? `<div style="margin-bottom:20px">${banner('Los avisos preventivos están desactivados.', 'Puedes consultar manualmente los avisos de ejemplo de esta página.', 'bell', 'neutral')}</div>` : '')
       + `<div class="two-col">${card('danger', 'EVENTO · PRESIÓN ALTA', 'San Mamés: decide antes de llegar.', 'Se esperan más llegadas entre 18:00 y 19:00. Aparcar fuera del núcleo y continuar en Metro puede ahorrarte tiempo.', 'Fuente: agenda de ejemplo · previsión con confianza media', goButton('Ver alternativas por evento', 'event', { kind: 'secondary', full: true, glyph: 'arrow' }))}${card('warning', 'CLIMA · CALOR EXTREMO', 'Una ruta con menos exposición.', '38 °C en el escenario de ejemplo. Prioriza sombra, paradas cubiertas y recorridos cortos a pie.', 'Fuente: clima de ejemplo · no es un aviso meteorológico vigente', goButton('Ver recomendaciones por calor', 'heat', { kind: 'secondary', full: true, glyph: 'arrow' }))}</div><div style="margin-top:24px">${banner('Avisos locales, sin seguir tus pasos.', 'El concepto procesa las alertas en el dispositivo. Esta versión no solicita permisos de ubicación ni utiliza notificaciones externas.', 'shield', 'neutral')}</div>`;
   }
@@ -240,19 +272,60 @@
     return back('alerts', 'Todos los avisos') + heading('Muévete sin pasar tanto calor.', 'Menos exposición. Más sombra. Una alternativa cuando la necesitas.')
       + `<div class="split"><div class="stack"><div class="metrics two">${metric('38 °C', 'Temperatura de ejemplo', 'Escenario de calor extremo', 'heat')}${metric('31 min', 'Con P+R + Metro', 'Menos trayecto expuesto', 'train')}</div>${card('warning', 'CUIDAR TAMBIÉN ES MOVILIDAD', 'Busca el recorrido más fresco.', 'Las olas de calor afectan especialmente a personas mayores y otros perfiles vulnerables. Evita la exposición prolongada y consulta avisos oficiales.', 'Las temperaturas de esta web son simuladas')}<section class="panel panel-pad"><h3>Una pausa a la sombra</h3><p class="muted small">Parque de Doña Casilda · oasis térmico de referencia</p><div class="row"><span class="chip active">${icon('leaf')} Infraestructura verde</span><span class="chip">${icon('access')} Revisar accesos</span></div><p class="footnote" style="margin-top:15px">No se confirma en tiempo real el estado de fuentes, sombra o instalaciones.</p></section></div><div class="stack">${option('Priorizar Metro', 'Menos exposición durante el desplazamiento.', 'train', 'go', 'compare')}${option('Revisar mi ruta a pie', 'Mantén el recorrido dentro de tus preferencias.', 'access', 'go', 'profile')}${option('Reconsiderar la bici', 'Compara alternativas durante el pico térmico.', 'bike', 'go', 'compare')}${goButton('Elegir una alternativa más fresca', 'compare', { kind: 'green', full: true, glyph: 'arrow' })}</div></div>`;
   }
+  function reportForm(compact = false) {
+    const observations = [['free', '🅿 Plaza libre'], ['occupied', '⛔ Plaza ocupada'], ['verify', '✓ Confirmar lectura'], ['incident', '⚠ Incidencia del sensor o acceso']];
+    return `<form id="${compact ? 'quick-report-form' : 'report-form'}" data-report-form class="form-stack${compact ? ' compact-report-form' : ' panel panel-pad'}">
+      ${compact ? '' : '<h2>Red Colaborativa</h2>'}
+      ${selectField('parking', 'Sensor y aparcamiento', M.PARKINGS.map(p => [p.id, `${p.sensor.id} · ${p.name}`]), state.selectedParking)}
+      <div data-report-sensor>${compact ? `<p class="footnote">${e(selectedParking().sensor.location)} · ubicación de ejemplo</p>` : sensorInfo(selectedParking())}</div>
+      ${selectField('observation', '¿Qué observas?', observations, 'free')}
+      ${toggle('stopped', 'Estoy parado.', 'No envíes reportes mientras conduces.', false)}
+      <p data-form-error class="inline-message" role="alert" hidden></p>
+      <button class="button contrast full" type="submit">${icon('users')} Enviar y sumar puntos</button>
+      <p class="footnote">+10 PTS solo después de validar. El envío no altera el dato del sensor ni acredita una plaza libre.</p>
+    </form>`;
+  }
   function renderReport() {
-    return heading('Una pequeña ayuda. Una gran diferencia.', 'Verifica lo que ves y ayuda a otras personas a moverse mejor.')
-      + `<div class="split"><form id="report-form" class="panel panel-pad form-stack"><div><div class="eyebrow green">COLABORACIÓN CIUDADANA</div><h2 style="margin:10px 0 0">¿Qué observas junto al sensor?</h2></div>
-        ${selectField('parking', 'Sensor y aparcamiento', M.PARKINGS.map(p => [p.id, `${p.sensor.id} · ${p.name}`]), state.selectedParking)}
-        <div id="report-sensor">${sensorInfo(selectedParking())}</div>
-        <fieldset><legend>LO QUE ESTÁS OBSERVANDO</legend><div class="radio-options">${[['free', 'Plaza libre', 'Ves una plaza libre en el ámbito indicado.'], ['occupied', 'Plaza ocupada', 'La plaza que observas está ocupada.'], ['verify', 'Confirmar la lectura del sensor', 'La situación coincide con la lectura identificada.']].map(([value, title, text], i) => `<label class="radio-option"><input type="radio" name="observation" value="${value}"${i === 0 ? ' checked' : ''} required><span><strong>${title}</strong><small>${text}</small></span></label>`).join('')}</div></fieldset>
-        ${toggle('stopped', 'Estoy parado y puedo reportar.', 'No utilices formularios mientras conduces.', false)}
-        <p id="report-error" class="inline-message" role="alert" hidden></p><button class="button" type="submit">${icon('users')} Enviar reporte anónimo</button><p class="footnote">Se asocia la observación al sensor mostrado, no a tu identidad. Reporte local de ejemplo, sin envío a servidores.</p></form>
-        <div class="stack">${card('positive', 'TU AYUDA SUMA', 'Puntos por información fiable.', 'Las aportaciones reciben puntos después de contrastarse con un sensor identificado. No al enviarlas.', '+10 puntos de ejemplo por verificación')}
-        ${option('Acreditar tu movilidad intermodal', 'Vincula Barik y adjunta el ticket de un P+R.', 'card', 'go', state.barik ? 'ticket' : 'barik')}
-        ${card('', 'ANONIMATO DESDE EL INICIO', 'Tu reporte no utiliza tu tarjeta.', 'Los reportes ciudadanos no se vinculan a la Barik. No incluyas matrículas, imágenes ni datos personales en la observación.')}
-        ${state.reports.length ? `<section class="panel panel-pad"><h3>Tus aportaciones de esta visita</h3>${state.reports.map(report => `<div class="transaction">${icon(report.validated ? 'check' : 'clock')}<div><strong>${e(observationNames[report.observation])}</strong><small>${e(report.sensorId)} · ${report.validated ? 'validado' : 'pendiente'}</small></div><span class="amount">${report.validated ? '+10' : '—'}</span></div>`).join('')}</section>` : ''}
-        <section class="card future-forum"><span class="chip">PRÓXIMAMENTE</span><h3>Foro vecinal de movilidad.</h3><p>Previsto para una fase futura, todavía sin publicaciones ni cesiones activas.</p><ul><li>Información sobre cesiones temporales de plazas privadas.</li><li>Dudas rápidas sobre zonas desconocidas.</li><li>Soporte y ayuda entre vecinos.</li></ul></section></div></div>`;
+    return heading('Reportes y ayuda vecinal.', 'Contrasta sensores o consulta dudas y cesiones temporales en el foro.', goButton('Foro vecinal', 'forum', { kind: 'secondary', glyph: 'chat' }), 'PartekaTU · Compartir')
+      + `<div class="split">${reportForm()}<div class="stack">
+        ${card('positive', 'VALIDACIÓN DE REPORTES', 'Puntos después del contraste.', 'La observación se asocia a un sensor identificado. Los puntos se conceden al validar, no al pulsar enviar.', '+10 PTS de ejemplo por aportación validada')}
+        ${option('SariTU · Acreditar uso intermodal', 'Vincula Barik y adjunta el ticket de un P+R.', 'card', 'go', state.barik ? 'ticket' : 'barik')}
+        ${card('', 'REPORTES ANÓNIMOS', 'Tu observación no se vincula a Barik.', 'No incluyas nombres, matrículas ni datos personales. Los reportes se mantienen solo durante esta visita.')}
+        ${state.reports.length ? `<section class="panel panel-pad"><h3>Mis aportaciones</h3>${state.reports.map(report => `<div class="transaction">${icon(report.validated ? 'check' : 'clock')}<div><strong>${e(observationNames[report.observation])}</strong><small>${e(report.sensorId)} · ${report.validated ? 'validado' : 'pendiente'}</small></div><span class="amount">${report.validated ? '+10 PTS' : '—'}</span>${!report.validated ? button('Ver', 'report-details', { id: report.id, kind: 'quiet', small: true }) : ''}</div>`).join('')}</section>` : ''}
+        <section class="card"><div class="eyebrow">FORO LOCAL</div><h3>Plazas temporales, dudas e incidencias.</h3><p>Puedes escribir y responder en esta visita. Las publicaciones no salen del navegador y no representan reservas reales.</p>${goButton('Abrir PartekaTU · Foro', 'forum', { kind: 'secondary', full: true, glyph: 'arrow' })}</section></div></div>`;
+  }
+  function forumList() {
+    const threads = state.forumThreads.filter(thread => state.forumCategory === 'all' || thread.category === state.forumCategory);
+    if (!threads.length) return '<section class="panel panel-pad"><p class="muted">Todavía no hay temas en esta categoría durante esta visita.</p></section>';
+    return [...threads].reverse().map(thread => `<article class="panel panel-pad forum-card">
+      <div class="row"><span class="chip${thread.category === 'share' ? ' active' : ''}">${e(M.FORUM_CATEGORIES[thread.category])}</span><span class="small muted">${e(thread.zone)}</span>${thread.closed ? '<span class="chip gray">Cerrado</span>' : ''}</div>
+      <h2><button class="thread-title" data-action="forum-thread" data-id="${thread.id}">${e(thread.title)}</button></h2>
+      <p>${e(thread.message)}</p>${thread.availability ? `<p class="forum-availability">${icon('clock')} ${e(thread.availability)}</p>` : ''}
+      <div class="forum-card-footer"><span>${thread.own ? 'Tu publicación local' : 'Publicación de ejemplo'} · ${thread.replies.length} respuesta${thread.replies.length === 1 ? '' : 's'}</span>${button(thread.category === 'share' ? 'Consultar la cesión' : 'Ver conversación', 'forum-thread', { id: thread.id, kind: 'secondary', small: true })}</div>
+    </article>`).join('');
+  }
+  function renderForum() {
+    return back('report', 'Volver a los reportes') + heading('Foro de movilidad.', 'Información por zonas y conversaciones de esta visita.', '', 'PartekaTU · Compartir')
+      + `<div class="forum-notice">${banner('Foro local de ejemplo.', 'Los mensajes no se publican en Internet, no crean reservas ni dan puntos. No escribas direcciones exactas, contactos, matrículas ni datos personales.', 'shield', 'neutral')}</div>
+      <div class="split forum-layout"><div class="stack">
+        <label class="field">Filtrar publicaciones<select id="forum-category"><option value="all"${state.forumCategory === 'all' ? ' selected' : ''}>Todos los temas</option>${Object.entries(M.FORUM_CATEGORIES).map(([key, label]) => `<option value="${key}"${state.forumCategory === key ? ' selected' : ''}>${label}</option>`).join('')}</select></label>
+        <div id="forum-list" class="stack">${forumList()}</div></div>
+        <section class="panel panel-pad"><h2>Crear un tema</h2><form id="forum-form" class="form-stack">
+        ${selectField('category', 'Tipo de publicación', Object.entries(M.FORUM_CATEGORIES), 'question')}
+        ${selectField('zone', 'Zona', M.FORUM_ZONES.map(zone => [zone, zone]), 'Indautxu')}
+        <label class="field">Título<input name="title" minlength="5" maxlength="80" required placeholder="Por ejemplo, acceso al parking"></label>
+        <label class="field" id="forum-availability-field" hidden>Fecha y horario de la cesión<input name="availability" minlength="5" maxlength="100" placeholder="Por ejemplo, hoy de 18:00 a 21:00"><small>No se cede ni reserva una plaza real desde esta web.</small></label>
+        <label class="field">Mensaje<textarea name="message" minlength="10" maxlength="600" required placeholder="Describe la duda, la incidencia o la cesión sin datos personales."></textarea></label>
+        ${toggle('stopped', 'Estoy parado.', 'No publiques mientras conduces.', false)}
+        <p data-form-error class="inline-message" role="alert" hidden></p><button class="button contrast full" type="submit">${icon('chat')} Publicar en esta visita</button></form></section></div>`;
+  }
+  function renderThread() {
+    const thread = state.forumThreads.find(item => item.id === state.selectedThreadId);
+    if (!thread) return renderForum();
+    return back('forum', 'Volver al foro') + heading(thread.title, `${M.FORUM_CATEGORIES[thread.category]} · ${thread.zone}`, thread.own && !thread.closed ? button('Cerrar publicación', 'close-thread', { id: thread.id, kind: 'secondary' }) : '', 'PartekaTU · Conversación')
+      + `<div class="wide-narrow stack"><article class="panel panel-pad forum-message"><div class="row"><span class="chip">${thread.own ? 'Tu publicación local' : 'Ejemplo de la comunidad'}</span>${thread.closed ? '<span class="chip gray">Cerrado</span>' : ''}</div><p>${e(thread.message)}</p>${thread.availability ? `<p class="forum-availability">${icon('clock')} ${e(thread.availability)}</p>` : ''}<p class="footnote">No constituye una reserva, un pago ni una cesión real de una plaza.</p></article>
+        <section class="panel panel-pad"><h2>Respuestas (${thread.replies.length})</h2><div class="forum-replies">${thread.replies.length ? thread.replies.map(reply => `<article class="forum-reply"><strong>${reply.own ? 'Tu respuesta local' : 'Respuesta de ejemplo'}</strong><span>${time(reply.createdAt)}</span><p>${e(reply.text)}</p></article>`).join('') : '<p class="small muted">Todavía no hay respuestas.</p>'}</div>
+        ${thread.closed ? banner('La publicación está cerrada.', 'Ya no admite nuevas respuestas.', 'info', 'neutral') : `<form id="forum-reply-form" class="form-stack"><label class="field">${thread.category === 'share' ? 'Consultar la cesión o responder' : 'Tu respuesta'}<textarea name="message" minlength="3" maxlength="600" required placeholder="Escribe sin datos personales."></textarea></label>${toggle('stopped', 'Estoy parado.', 'La respuesta solo se conserva durante esta visita.', false)}<p data-form-error class="inline-message" role="alert" hidden></p><button class="button contrast" type="submit">Añadir respuesta local</button></form>`}</section></div>`;
   }
   function currentReport() { return state.reports.find(r => r.id === state.lastReportId); }
   function renderPending() {
@@ -271,7 +344,7 @@
       ...state.ticketClaims.filter(t => t.status === 'validated').map(t => ({ glyph: 'train', label: 'P+R + transporte público acreditado', detail: `Ticket ${t.reference} · validación de ejemplo`, amount: '+' + M.TICKET_REWARD })),
       ...Array.from({ length: state.redemptions }, () => ({ glyph: 'gift', label: 'Canje Barik de ejemplo', detail: 'Sin recarga ni transacción real', amount: '−100' }))
     ];
-    return heading('Tu forma de moverte suma.', 'Menos búsqueda, más alternativas y una comunidad que se ayuda.')
+    return heading('Mis puntos y recompensas.', 'Saldo de esta visita, justificantes validados y canjes de ejemplo.', '', 'SariTU · Premiar')
       + `<div class="split"><div class="stack"><section class="balance-card">${icon('leaf')}<div class="eyebrow">PUNTOS DE MOVILIDAD SOSTENIBLE</div><div class="balance">${state.points}</div><p>Tu saldo de ejemplo. Cada decisión puede contar.</p><span class="chip" style="background:#ffffff12;color:#e1eddd;border-color:#ffffff25">Solo en esta visita · sin valor real</span></section>
         <div class="metrics two">${metric(state.ticketClaims.filter(t => t.status === 'validated').length, 'Usos intermodales acreditados', 'Barik + ticket P+R validados')}${metric(state.reports.filter(r => r.validated).length, 'Aportaciones validadas', 'Sensor identificado')}</div>
         <section class="panel panel-pad"><h3>Tu actividad</h3>${transactions.length ? transactions.map(t => `<div class="transaction">${icon(t.glyph)}<div><strong>${e(t.label)}</strong><small>${e(t.detail)}</small></div><span class="amount${t.amount.startsWith('−') ? ' negative' : ''}">${t.amount}</span></div>`).join('') : '<p class="footnote">Acredita un uso intermodal o verifica la lectura de un sensor para sumar puntos.</p>'}<div class="transaction">${icon('leaf')}<div><strong>Saldo inicial de ejemplo</strong><small>Punto de partida de esta versión local</small></div><span class="amount">+110</span></div></section>
@@ -407,12 +480,14 @@
       + `<div class="split"><section class="panel panel-pad"><h2>Privacidad desde el principio</h2>${[
         ['shield', 'Sin historial de trayectos.', 'Origen y destino se mantienen solo en memoria mientras está abierta la página. No se envían ni se guardan en el navegador.'],
         ['users', 'Reportes separados de Barik.', 'Las observaciones se asocian al sensor físico identificado, no a tu tarjeta ni a tu identidad. No incluyen nombres, matrículas ni imágenes.'],
+        ['chat', 'PartekaTU solo durante esta visita.', 'Las publicaciones, ofertas y respuestas del foro se mantienen en memoria y se pierden al recargar o cerrar. No se publican en Internet, no reservan plazas y no deben incluir datos personales.'],
         ['card', 'Barik personalizada, sin datos completos.', 'Solo pedimos un alias y cuatro dígitos de ejemplo. No se comprueba una identidad real. La vinculación se pierde al recargar o cerrar la página.'],
         ['upload', 'Tu foto se queda en el dispositivo.', 'El ticket se abre localmente y se calcula una huella para evitar duplicados. No hay subida a servidores ni OCR. La imagen se descarta al validar, quitarla, reemplazarla, desvincular Barik o cerrar la página. Las referencias quedan solo durante esta visita.'],
         ['chat', 'Asistente local.', 'Usa respuestas guiadas y los datos de ejemplo. La conversación no se envía a una IA ni se guarda en el navegador. No escribas información personal.'],
         ['pin', 'Ubicación opcional.', 'La web no solicita GPS. Puedes introducir origen y destino manualmente.'],
         ['sliders', 'Preferencias guardadas en este navegador.', 'Se conservan el tema nocturno, la accesibilidad y las condiciones de acceso. No usamos analítica.'],
-        ['map', 'Cartografía de OpenFreeMap.', 'El mapa necesita Internet. OpenFreeMap y su red de distribución reciben tu dirección IP y las solicitudes de la zona que visualizas. No enviamos búsquedas, reportes, tarjetas, fotos ni conversaciones. No se solicita el GPS. La ocupación y los sensores continúan siendo ejemplos locales.']
+        ['map', 'Cartografía de OpenFreeMap.', 'El mapa necesita Internet. OpenFreeMap y su red de distribución reciben tu dirección IP y las solicitudes de la zona que visualizas. No enviamos búsquedas, reportes, tarjetas, fotos ni conversaciones. No se solicita el GPS. La ocupación, los sensores y las capas de BateraTU son ejemplos locales.'],
+        ['chart', 'Equivalencia de AurrezTU.', 'El ahorro del perfil usa un factor ilustrativo de 30 puntos intermodales por 1,2 kg de CO₂. No es una medición ni una equivalencia oficial de Barik. Solo cuentan los justificantes validados, no los reportes, los puntos iniciales ni las publicaciones.']
       ].map(([glyph, title, text]) => `<article class="privacy-point">${icon(glyph)}<div><h3>${title}</h3><p>${text}</p></div></article>`).join('')}${button('Borrar mis preferencias guardadas', 'clear-preferences', { kind: 'secondary', full: true })}</section>
       <div class="stack">${card('unknown', 'NO CONFUNDIMOS AUSENCIA CON DISPONIBILIDAD', 'Caducado significa desconocido.', 'Cada lectura muestra sensor, ubicación, hora y antigüedad. Las lecturas del ejemplo son válidas durante 3 minutos.', 'Umbral ilustrativo, no una regla oficial del operador', goButton('Ver el estado de los datos', 'connection', { kind: 'secondary', full: true }))}
       ${card('positive', 'INFORMAR, NO RESERVAR', 'Sin promesas de una plaza.', 'La ocupación puede cambiar antes de que llegues. Los rangos y tiempos son estimaciones. La señalización y el operador determinan las condiciones reales.')}
@@ -455,7 +530,7 @@
       ['', 'Agenda', 'Riesgo por eventos', 'Evento de referencia, no vigente'],
       ['positive', 'Comunidad', 'Reportes anónimos', `${state.reports.filter(r => r.validated).length} validados en esta visita`]
     ];
-    return heading('Impacto de la movilidad.', 'Tiempo de búsqueda, kilómetros y emisiones evitadas.', `<span class="chip">${icon('clock')} Últimos 30 días · ejemplo</span>`)
+    return heading('Impacto de la movilidad.', 'Tiempo de búsqueda, kilómetros y emisiones evitadas.', `<span class="chip">${icon('clock')} Últimos 30 días · ejemplo</span>`, 'AurrezTU · Ahorrar')
       + `<div class="metrics impact-metrics">${impactCards}</div><p class="footnote" style="margin-top:12px">Ahorro agregado durante 30 días respecto al escenario habitual equivalente. El porcentaje compara el cambio con el valor anterior. Todas las cifras son de ejemplo.</p>
         <div class="two-col" style="margin-top:23px"><section class="panel map-panel"><div class="panel-head"><div><h2>Anticipar antes de saturar.</h2><p>Presión urbana prevista · esquema de referencia</p></div>${icon('map')}</div>${mapMarkup(false, true)}${mapLegend()}</section><section class="panel panel-pad"><h3>Menos minutos dando vueltas.</h3><p class="small muted">50 minutos ahorrados en los últimos 7 días del periodo · ejemplo</p><div class="chart" role="img" aria-label="Minutos evitados de ejemplo: lunes 4, martes 6, miércoles 5, jueves 8, viernes 9, sábado 7 y domingo 11. Total: 50 minutos.">${[4, 6, 5, 8, 9, 7, 11].map((v, i) => `<div class="chart-col"><span class="chart-value">${v}</span><div class="chart-bar" style="height:${v * 11}px"></div><span class="chart-day">${['L', 'M', 'X', 'J', 'V', 'S', 'D'][i]}</span></div>`).join('')}</div><div class="metrics two">${metric('26 avisos', 'Falsas alarmas evitadas', 'Antes: 100 → ahora: 74', '', '−26 %')}${metric('184', 'Aportaciones validadas', 'Indicador social de ejemplo')}</div></section></div>
         <div class="section-title"><h2>Cinco fuentes. Ninguna falsa certeza.</h2><span class="small muted">Origen y fiabilidad a la vista</span></div><div class="source-grid">${sources.map(([tone, name, detail, foot]) => `<section class="card source-card ${tone}"><div class="eyebrow">${name}</div><h3>${detail}</h3><div class="meta">${foot}</div></section>`).join('')}</div>
@@ -511,22 +586,29 @@
     if (['search', 'results', 'parking', 'sensor', 'location', 'welcome', 'connection', 'profile'].includes(state.view)) return 'map';
     if (['route', 'drive', 'arrival'].includes(state.view)) return 'compare';
     if (['event', 'heat'].includes(state.view)) return 'alerts';
-    if (['pending', 'validated'].includes(state.view)) return 'report';
+    if (['pending', 'validated', 'forum', 'thread'].includes(state.view)) return 'report';
     if (['redeemed', 'barik', 'ticket', 'ticket-status'].includes(state.view)) return 'rewards';
     if (state.view === 'reading') return 'settings';
     return state.view;
   }
   function renderNavigation() {
-    const primary = [['map', 'map', 'Explorar'], ['compare', 'train', 'Cómo llegar'], ['alerts', 'bell', 'Avisos'], ['report', 'users', 'Comunidad'], ['rewards', 'leaf', 'Mi movilidad']];
-    const other = [['public', 'screen', 'Panel público'], ['impact', 'chart', 'Impacto'], ['settings', 'access', 'Accesibilidad']];
-    const nav = items => items.map(([view, glyph, label]) => `<a href="#${view}" class="nav-item"${activeNav() === view ? ' aria-current="page"' : ''}>${icon(glyph)}${label}${view === 'alerts' && state.preferences.alerts ? '<span class="nav-count">2</span>' : ''}</a>`).join('');
-    document.getElementById('main-nav').innerHTML = nav(primary) + '<div class="nav-label">UNA CIUDAD PARA TODOS</div>' + nav(other);
+    const primary = [['map', 'map', 'Encontrar aparcamiento'], ['compare', 'train', 'Comparar rutas'], ['alerts', 'bell', 'Avisos preventivos'], ['report', 'users', 'Reportes y foro'], ['rewards', 'leaf', 'Puntos y recompensas']];
+    const other = [['impact', 'chart', 'Ahorro e impacto'], ['public', 'screen', ''], ['settings', 'access', '']];
+    const nav = items => items.map(([view, glyph, description]) => `<a href="#${view}" class="nav-item"${activeNav() === view ? ' aria-current="page"' : ''}>${icon(glyph)}<span class="nav-copy"><strong>${e(views[view][0])}</strong>${description ? `<small>${e(description)}</small>` : ''}</span>${view === 'alerts' && state.preferences.alerts ? '<span class="nav-count">2</span>' : ''}</a>`).join('');
+    document.getElementById('main-nav').innerHTML = nav(primary) + '<div class="nav-label">MÁS OPCIONES</div>' + nav(other);
     document.getElementById('breadcrumb-current').textContent = views[state.view][0];
+  }
+  function updateHeaderPoints() {
+    const value = `${state.points} PTS`;
+    const counter = document.getElementById('header-points');
+    if (counter.textContent !== value) counter.textContent = value;
+    document.getElementById('points-button').setAttribute('aria-label', `SariTU: ${state.points} puntos. Ver saldo y recompensas`);
   }
   function render(focus = false) {
     AparkaMaps.destroy();
     applyPreferences();
     renderNavigation();
+    updateHeaderPoints();
     main.innerHTML = views[state.view][1]();
     AparkaMaps.mount(main, state, id => {
       state.selectedParking = id;
@@ -594,7 +676,7 @@
     document.getElementById('assistant-panel').hidden = false;
     document.getElementById('assistant-toggle').setAttribute('aria-expanded', 'true');
     if (!document.getElementById('assistant-log').children.length) {
-      appendAssistantMessage('Hola. Te ayudo con eventos cercanos, el estado de las zonas, sensores, Barik y el uso de la web. Mis respuestas son locales y usan datos de ejemplo; no consulto información en vivo.');
+      appendAssistantMessage('Soy GaldeTU. Puedes preguntarme por las zonas de AurkiTU, los avisos de AurreraTU, los puntos de SariTU o cómo utilizar la app. Las respuestas usan datos de ejemplo, no información en vivo.');
     }
     document.getElementById('assistant-input').focus({ preventScroll: true });
   }
@@ -606,10 +688,21 @@
   function assistantAnswer(question) {
     const normalize = text => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const q = normalize(question);
-    if (/barik|ticket|justificante|puntos|canj|recompensa|acreditar/.test(q)) {
+    if (/bateratu|refugio|calidad del aire|itinerario sombreado/.test(q)) {
+      return { text: 'En AurkiTU, abre BateraTU junto a los controles del mapa. Puedes activar refugios climáticos, lecturas de PM₂.₅ y recorridos a la sombra.\nSon capas de ejemplo: no confirman la seguridad del aire, la sombra ni la accesibilidad de un itinerario.', action: 'environment-map', label: 'Abrir BateraTU en el mapa' };
+    }
+    if (/aurreztu|co2|ahorro|emisiones/.test(q)) {
+      const impact = M.personalImpact(state);
+      return { text: `AurrezTU muestra el impacto agregado y tus hitos en Mi perfil. Durante esta visita tienes ${impact.mobilityPoints} PTS intermodales acreditados: equivalen a ${impact.co2Kg.toLocaleString('es-ES', { maximumFractionDigits: 1 })} kg de CO₂ en este ejemplo.\nEl factor de 30 PTS por 1,2 kg es ilustrativo, no una medición ni una equivalencia oficial de Barik.`, view: 'profile', label: 'Ver mis hitos de AurrezTU' };
+    }
+    if (/gidatu|bizkaibizi|comparar rutas/.test(q)) {
+      const best = M.journeyOptions(state)[0];
+      return { text: `GidaTU compara coche, Bizkaibizi y P+R + Metro, incluyendo la búsqueda y el tramo a pie. La opción de menor duración en este escenario es ${modeNames[best.mode]}, con ${best.duration} minutos.\nLas duraciones y la disponibilidad son de ejemplo.`, view: 'compare', label: 'Abrir GidaTU' };
+    }
+    if (/saritu|barik|ticket|justificante|puntos|canj|recompensa|acreditar/.test(q)) {
       return { text: `${state.barik ? 'Ya tienes una Barik personalizada vinculada localmente.' : 'Primero vincula una Barik personalizada con un alias y cuatro dígitos de ejemplo.'}\nDespués adjunta una foto del ticket de un P+R y confirma que continuaste en transporte público. Solo la validación de ejemplo suma 30 puntos. Finalizar una ruta no los concede.\nNo se recarga tu tarjeta real ni se envía la fotografía.`, view: state.barik ? 'ticket' : 'barik', label: state.barik ? 'Adjuntar ticket del P+R' : 'Vincular mi Barik' };
     }
-    if (/evento|partido|concierto|san mames/.test(q) && !/sensor|plaza|zona|estado/.test(q)) {
+    if (/aurreratu|evento|partido|concierto|san mames/.test(q) && !/sensor|plaza|zona|estado/.test(q)) {
       return { text: 'En la agenda de ejemplo hay un evento en San Mamés con presión alta prevista de 18:00 a 19:00. Se recomienda decidir antes de entrar: P+R Leioa + Metro o una salida a las 19:15.\nEs un escenario simulado, no un evento verificado de hoy.', view: 'event', label: 'Ver aviso y alternativas' };
     }
     if (/calor|temperatura|clima|sombra|oasis/.test(q)) {
@@ -624,13 +717,13 @@
     if (/privacidad|datos personales|rastre|historial|guarda/.test(q)) {
       return { text: 'Se guardan las preferencias de interfaz en este navegador. Los reportes no se vinculan a la tarjeta. La Barik, las fotos y esta conversación no se guardan al cerrar o recargar.\nEl mapa descarga cartografía de OpenFreeMap. Ese proveedor recibe tu IP y la zona visible; no le enviamos formularios ni conversaciones. No se solicita el GPS.', view: 'privacy', label: 'Ver privacidad y transparencia' };
     }
-    if (/foro|vecin|garaje|cesion/.test(q)) {
-      return { text: 'El foro vecinal está previsto para una fase futura: dudas sobre zonas, soporte entre vecinos e información sobre posibles cesiones temporales de plazas privadas. Todavía no permite publicar ni reservar.\nAhora puedes aportar observaciones sobre sensores en Comunidad.', view: 'report', label: 'Abrir comunidad' };
+    if (/partekatu|foro|vecin|garaje|cesion/.test(q)) {
+      return { text: 'PartekaTU reúne los reportes de sensores y el foro vecinal. Puedes escribir dudas, incidencias o una cesión temporal con su zona y horario, y responder a otros temas.\nLas publicaciones son locales: no se comparten por Internet ni reservan plazas. No incluyas datos personales. Los mensajes del foro no conceden puntos.', view: 'forum', label: 'Abrir el foro de PartekaTU' };
     }
     if (/guia|empezar|como uso|paso a paso|ayuda|funciona/.test(q)) {
       return { text: '1. Ajusta tu perfil de acceso.\n2. Busca el destino y revisa el sensor, su ubicación y la antigüedad del dato.\n3. Compara coche, Metro y bici contando también la búsqueda.\n4. Si usas P+R + transporte público, vincula Barik y adjunta tu ticket para acreditar puntos.\nUna plaza indicada nunca queda reservada.', view: 'profile', label: 'Empezar por mi perfil' };
     }
-    if (/sensor|zona|estado|plaza|aparcar|disponib|ocup|leioa|indautxu|abando|caduc|conexion/.test(q)) {
+    if (/aurkitu|sensor|zona|estado|plaza|aparcar|disponib|ocup|leioa|indautxu|abando|caduc|conexion/.test(q)) {
       const parking = M.PARKINGS.find(p => q.includes(normalize(p.id)) || q.includes(normalize(p.sensor.id)));
       const targets = parking ? [parking] : M.PARKINGS;
       const readings = targets.map(p => {
@@ -652,6 +745,34 @@
     go: el => {
       if (el.closest('#assistant-panel')) closeAssistant(false);
       navigate(el.dataset.view);
+    },
+    'environment-map': () => {
+      closeAssistant(false);
+      navigate('map');
+      const filters = main.querySelector('.environment-filters');
+      if (filters) {
+        filters.open = true;
+        filters.scrollIntoView({ block: 'center' });
+        filters.querySelector('summary').focus();
+      }
+    },
+    'forum-thread': el => {
+      const id = Number(el.dataset.id);
+      if (!state.forumThreads.some(thread => thread.id === id)) return notify('No se encuentra esta publicación.', true);
+      state.selectedThreadId = id;
+      navigate('thread');
+    },
+    'close-thread': el => {
+      const result = M.closeForumThread(state, Number(el.dataset.id));
+      if (!result.ok) return notify(result.message, true);
+      render();
+      notify('Publicación cerrada en esta visita.');
+    },
+    'report-details': el => {
+      const id = Number(el.dataset.id);
+      if (!state.reports.some(report => report.id === id)) return notify('No se encuentra ese reporte.', true);
+      state.lastReportId = id;
+      navigate('pending');
     },
     'toggle-theme': () => {
       state.preferences.theme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
@@ -886,13 +1007,8 @@
       state.departure = value;
       render();
       notify('Hora de salida actualizada.');
-    } else if (form.id === 'report-form') {
-      const errorNode = document.getElementById('report-error');
-      if (state.dataMode === 'offline') {
-        errorNode.textContent = 'Sin conexión no se puede completar este envío de ejemplo. No se ha creado ningún reporte.';
-        errorNode.hidden = false;
-        return;
-      }
+    } else if (form.matches('[data-report-form]')) {
+      const errorNode = form.querySelector('[data-form-error]');
       const parkingId = String(data.get('parking'));
       if (!M.PARKINGS.some(p => p.id === parkingId)) return notify('Selecciona un aparcamiento válido.', true);
       state.selectedParking = parkingId;
@@ -904,6 +1020,18 @@
         return;
       }
       navigate('pending');
+    } else if (form.id === 'forum-form' || form.id === 'forum-reply-form') {
+      const result = form.id === 'forum-form'
+        ? M.addForumThread(state, { category: String(data.get('category')), zone: String(data.get('zone')), title: String(data.get('title')), message: String(data.get('message')), availability: String(data.get('availability') || ''), stopped: checked(form, 'stopped') })
+        : M.replyForumThread(state, { id: state.selectedThreadId, message: String(data.get('message')), stopped: checked(form, 'stopped') });
+      if (!result.ok) {
+        const errorNode = form.querySelector('[data-form-error]');
+        errorNode.textContent = result.message;
+        errorNode.hidden = false;
+        return;
+      }
+      navigate('thread');
+      notify('Guardado solo durante esta visita. No se ha publicado en Internet.');
     } else if (form.id === 'settings-form') {
       Object.assign(state.preferences, { theme: String(data.get('theme')), vision: String(data.get('vision')), font: String(data.get('font')), spacing: String(data.get('spacing')), simple: checked(form, 'simple'), alerts: checked(form, 'alerts') });
       savePreferences();
@@ -915,11 +1043,23 @@
   });
   document.addEventListener('change', event => {
     if (event.target.id === 'ticket-file') chooseTicketPhoto(event.target.files[0]);
-    if (event.target.name === 'parking' && event.target.closest('#report-form')) {
+    if (event.target.name === 'parking' && event.target.closest('[data-report-form]')) {
       const parking = M.PARKINGS.find(p => p.id === event.target.value);
       if (!parking) return notify('No se encuentra el sensor seleccionado.', true);
       state.selectedParking = parking.id;
-      document.getElementById('report-sensor').innerHTML = sensorInfo(parking);
+      const form = event.target.closest('[data-report-form]');
+      form.querySelector('[data-report-sensor]').innerHTML = form.id === 'quick-report-form'
+        ? `<p class="footnote">${e(parking.sensor.location)} · ubicación de ejemplo</p>` : sensorInfo(parking);
+    }
+    if (event.target.id === 'forum-category') {
+      state.forumCategory = event.target.value;
+      document.getElementById('forum-list').innerHTML = forumList();
+    }
+    if (event.target.name === 'category' && event.target.closest('#forum-form')) {
+      const sharing = event.target.value === 'share';
+      const field = document.getElementById('forum-availability-field');
+      field.hidden = !sharing;
+      field.querySelector('input').required = sharing;
     }
     if (event.target.id === 'connection-select') {
       M.changeDataMode(state, event.target.value);
@@ -950,7 +1090,7 @@
   document.getElementById('menu-button').innerHTML = icon('menu');
   document.getElementById('notification-button').innerHTML = icon('bell');
   document.getElementById('sidebar-leaf').innerHTML = icon('leaf');
-  document.getElementById('assistant-toggle').innerHTML = icon('chat') + '<span>¿Te ayudo?</span>';
+  document.getElementById('assistant-toggle').innerHTML = icon('chat') + '<span>GaldeTU</span>';
   window.addEventListener('pagehide', () => {
     clearTicketPhoto();
     AparkaMaps.destroy();
@@ -971,17 +1111,30 @@
     AparkaMaps.refresh();
     const availability = M.PARKINGS.map(p => M.reading(p, state).status).join();
     if (lastAvailability && availability !== lastAvailability && ['map', 'results', 'parking', 'sensor', 'public', 'connection', 'impact'].includes(state.view)) {
-      const search = main.querySelector('#destination');
-      const draft = search ? { value: search.value, focused: document.activeElement === search, start: search.selectionStart, end: search.selectionEnd } : null;
+      const active = document.activeElement;
+      const focused = active?.form?.id && active.name ? { form: active.form.id, name: active.name, start: active.selectionStart, end: active.selectionEnd } : null;
+      const drafts = Array.from(main.querySelectorAll('form')).map(form => ({
+        id: form.id, values: Array.from(form.elements).filter(field => field.name && field.type !== 'file').map(field => ({ name: field.name, value: field.value, checked: field.checked }))
+      }));
+      const environmentOpen = main.querySelector('.environment-filters')?.open;
       render();
-      const restored = main.querySelector('#destination');
-      if (draft && restored) {
-        restored.value = draft.value;
-        if (draft.focused) {
-          restored.focus({ preventScroll: true });
-          restored.setSelectionRange(draft.start, draft.end);
+      for (const draft of drafts) {
+        const form = document.getElementById(draft.id);
+        if (!form) continue;
+        for (const value of draft.values) {
+          const field = form.elements.namedItem(value.name);
+          if (!field) continue;
+          field.value = value.value;
+          if (typeof value.checked === 'boolean') field.checked = value.checked;
         }
       }
+      const restoredFocus = focused ? document.getElementById(focused.form)?.elements.namedItem(focused.name) : null;
+      if (restoredFocus) {
+        restoredFocus.focus({ preventScroll: true });
+        if (typeof focused.start === 'number' && typeof restoredFocus.setSelectionRange === 'function') restoredFocus.setSelectionRange(focused.start, focused.end);
+      }
+      const environment = main.querySelector('.environment-filters');
+      if (environment && environmentOpen !== undefined) environment.open = environmentOpen;
     }
     lastAvailability = availability;
   }, 1000);

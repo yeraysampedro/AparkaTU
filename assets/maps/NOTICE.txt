@@ -26,6 +26,10 @@ No se descargan zonas para uso offline ni se solicita ninguna clave API.
 Los marcadores son referencias aproximadas; no localizaciones verificadas
 de accesos, plazas o sensores. Los datos de ocupacion y las zonas de presion
 son simulados.
+AurkiTU conserva el mapa con Leaflet. BateraTU incorpora referencias de
+refugios, lecturas ficticias de PM2.5 e itinerarios sombreados no verificados.
+La demo no se conecta a WebSockets ni a sensores reales.
+Se mantiene OpenFreeMap sin clave; CARTO Voyager requiere una clave propia.
 Referencias de situacion:
 https://es.wikipedia.org/wiki/Estaci%C3%B3n_de_Leioa
 https://es.wikipedia.org/wiki/Estaci%C3%B3n_de_Indautxu

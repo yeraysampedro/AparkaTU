@@ -32,11 +32,12 @@
   <div class="page-shell">
     <header class="topbar">
       <button id="menu-button" class="icon-button mobile-menu" data-action="menu" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar"></button>
-      <div class="breadcrumb"><span>Bizkaia</span><span class="breadcrumb-divider">/</span><strong id="breadcrumb-current">Explorar</strong></div>
+      <div class="breadcrumb"><span>Bizkaia</span><span class="breadcrumb-divider">/</span><strong id="breadcrumb-current">AurkiTU</strong></div>
       <div class="topbar-actions">
         <span class="demo-label"><span class="status-dot"></span> Datos de ejemplo</span>
+        <button id="points-button" class="points-button" data-action="go" data-view="rewards" aria-label="SariTU: 110 puntos. Ver saldo y recompensas"><span class="points-module">SariTU</span><span id="header-points" aria-live="polite" aria-atomic="true">110 PTS</span></button>
         <button id="theme-button" class="icon-button" data-action="toggle-theme" aria-label="Activar modo nocturno" aria-pressed="false" title="Activar modo nocturno"></button>
-        <button id="notification-button" class="icon-button notification-button" data-action="go" data-view="alerts" aria-label="Ver avisos"></button>
+        <button id="notification-button" class="icon-button notification-button" data-action="go" data-view="alerts" aria-label="AurreraTU: ver avisos"></button>
         <button class="profile-button" data-action="go" data-view="profile"><span class="avatar">TÚ</span><span>Mi perfil</span></button>
       </div>
     </header>
@@ -48,7 +49,7 @@
   <dialog id="modal" aria-labelledby="modal-title"></dialog>
   <section id="assistant-panel" class="assistant-panel" aria-labelledby="assistant-title" hidden>
     <header class="assistant-header">
-      <div><h2 id="assistant-title">Tu asistente de movilidad</h2><p>Ayuda local · sin conexión a una IA externa</p></div>
+      <div><h2 id="assistant-title">GaldeTU · Tu asistente</h2><p>Respuestas locales con datos de ejemplo</p></div>
       <button class="icon-button" data-action="close-assistant" aria-label="Cerrar asistente">×</button>
     </header>
     <div id="assistant-log" class="assistant-log" role="log" aria-live="polite" aria-label="Conversación con el asistente"></div>
@@ -65,7 +66,7 @@
     </form>
     <p class="assistant-disclaimer">Respuestas guiadas con datos de ejemplo. No guardamos la conversación.</p>
   </section>
-  <button id="assistant-toggle" class="assistant-toggle" data-action="toggle-assistant" aria-expanded="false" aria-controls="assistant-panel" aria-label="Abrir asistente de movilidad"></button>
+  <button id="assistant-toggle" class="assistant-toggle" data-action="toggle-assistant" aria-expanded="false" aria-controls="assistant-panel" aria-label="Abrir GaldeTU, asistente de movilidad"></button>
   <noscript><div class="noscript">Activa JavaScript para consultar el mapa, comparar rutas y utilizar los filtros de AparkaTu.</div></noscript>
 </body>
 </html>

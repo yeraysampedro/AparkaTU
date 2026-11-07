@@ -5,6 +5,24 @@ const AparkaModel = (() => {
   const MAX_TICKET_BYTES = 5 * 1024 * 1024;
   const TICKET_IMAGE_TYPES = Object.freeze(['image/jpeg', 'image/png', 'image/webp']);
   const TICKET_REWARD = 30;
+  const MOBILITY_EQUIVALENCE = Object.freeze({ points: TICKET_REWARD, co2Kg: 1.2, minutes: 16 });
+  const FORUM_CATEGORIES = Object.freeze({ share: 'Cesión temporal', question: 'Duda sobre una zona', incident: 'Incidencia' });
+  const FORUM_ZONES = Object.freeze(['Leioa', 'Indautxu', 'Abando', 'San Mamés', 'Casco Viejo']);
+  const ENVIRONMENT = Object.freeze({
+    refuges: [
+      { id: 'casilda', name: 'Parque de Doña Casilda', coordinates: [43.2654, -2.9436], detail: 'Arbolado y zonas de descanso de referencia. No se confirma sombra, apertura ni disponibilidad de agua.' },
+      { id: 'arenal', name: 'El Arenal', coordinates: [43.2609, -2.9231], detail: 'Zona arbolada de referencia. La sombra cambia según la hora y no está verificada.' },
+      { id: 'botica', name: 'Parque de Botica Vieja', coordinates: [43.2723, -2.9469], detail: 'Espacio verde junto a la ría. Referencia para planificar una pausa; condiciones no verificadas.' }
+    ],
+    air: [
+      { id: 'air-indautxu', name: 'Indautxu', coordinates: [43.2617, -2.9401], pm25: 9, age: 50 },
+      { id: 'air-abando', name: 'Abando', coordinates: [43.2629, -2.9281], pm25: 14, age: 75 }
+    ],
+    shade: [
+      { id: 'shade-casilda', name: 'Indautxu → Doña Casilda', points: [[43.260861, -2.940236], [43.2622, -2.9413], [43.2634, -2.9425], [43.2654, -2.9436]], detail: 'Tramo peatonal de referencia desde el aparcamiento. Sombra y accesibilidad no verificadas; no es navegación.' },
+      { id: 'shade-leioa', name: 'P+R Leioa → acceso al Metro', points: [[43.3187, -2.9928], [43.3185, -2.9923], [43.318056, -2.991944]], detail: 'Ejemplo de conexión peatonal desde el P+R. El recorrido y la sombra deben comprobarse en el lugar.' }
+    ]
+  });
   const CLOCK_FORMAT = new Intl.DateTimeFormat('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Europe/Madrid' });
   const DEFAULTS = Object.freeze({
     pmr: true, stepFree: true, includeOTA: false, preferPr: true,
@@ -13,7 +31,7 @@ const AparkaModel = (() => {
   });
   const PARKINGS = Object.freeze([
     Object.freeze({ id: 'leioa', name: 'P+R Leioa', type: 'pr', coordinates: Object.freeze([43.318056, -2.991944]), mapReference: 'Entorno de la estación de Leioa · ubicación aproximada del ejemplo', spaces: 42, pmr: 2, stepFree: true, walk: 260, residentOnly: false, vehicles: ['B', 'C', 'ECO', '0'], age: 42, margin: 7, source: 'Sensor LEI-ACC-01', connection: 'Metro L1 · conexión a San Mamés', sensor: Object.freeze({ id: 'LEI-ACC-01', location: 'P+R Leioa · acceso principal · carril de entrada 1 · barrera A', device: 'Contador de entradas y salidas', coverage: 'Ocupación agregada del aparcamiento; no confirma una plaza concreta.' }) }),
-    Object.freeze({ id: 'indautxu', name: 'Indautxu', type: 'parking', coordinates: Object.freeze([43.260861, -2.940236]), mapReference: 'Entorno de la estación de Indautxu · ubicación aproximada del ejemplo', spaces: 18, pmr: 1, stepFree: true, walk: 180, residentOnly: false, vehicles: ['C', 'ECO', '0'], age: 20, margin: 4, source: 'Sensor IND-P1-03', connection: 'Tramo a pie sin escalones · ejemplo', sensor: Object.freeze({ id: 'IND-P1-03', location: 'Parking Indautxu · planta −1 · sector B · acceso a fila 3', device: 'Contador de ocupación por sector', coverage: 'Ocupación del sector B; datos agregados de plazas.' }) }),
+    Object.freeze({ id: 'indautxu', name: 'Indautxu', type: 'parking', coordinates: Object.freeze([43.260861, -2.940236]), mapReference: 'Entorno de la estación de Indautxu · ubicación aproximada del ejemplo', spaces: 0, pmr: 1, stepFree: true, walk: 180, residentOnly: false, vehicles: ['C', 'ECO', '0'], age: 20, margin: 4, source: 'Sensor IND-P1-03', connection: 'Tramo a pie sin escalones · ejemplo', sensor: Object.freeze({ id: 'IND-P1-03', location: 'Parking Indautxu · planta −1 · sector B · acceso a fila 3', device: 'Contador de ocupación por sector', coverage: 'Ocupación del sector B; datos agregados de plazas.' }) }),
     Object.freeze({ id: 'abando', name: 'Abando · OTA', type: 'ota', coordinates: Object.freeze([43.26139, -2.92944]), mapReference: 'Zona de Abando · ubicación aproximada del ejemplo', spaces: 12, pmr: 1, stepFree: true, walk: 90, residentOnly: true, vehicles: ['C', 'ECO', '0'], age: 1130, margin: 5, source: 'Sensor ABA-OTA-07', connection: 'Zona residente · condiciones simuladas', sensor: Object.freeze({ id: 'ABA-OTA-07', location: 'Abando · zona OTA de referencia · tramo 2 · poste de lectura 07', device: 'Nodo de sensores de plazas reguladas', coverage: 'Agregado del tramo 2. La lectura actual ha caducado.' }) })
   ]);
   const fail = (code, message) => ({ ok: false, code, message });
@@ -32,15 +50,36 @@ const AparkaModel = (() => {
       selectedParking: 'leioa', selectedMode: 'metro', manualLocation: false,
       moving: false, muted: false, points: 110, reports: [], lastReportId: null,
       completedModes: [], redemptionPending: false, redemptions: 0, storageWarning: '',
-      barik: null, barikSequence: 0, ticketClaims: [], lastTicketId: null
+      barik: null, barikSequence: 0, ticketClaims: [], lastTicketId: null,
+      environmentLayers: { refuges: false, air: false, shade: false },
+      forumCategory: 'all', selectedThreadId: null,
+      forumThreads: [
+        { id: 1, category: 'question', zone: 'Indautxu', title: 'Acceso sin escalones desde el parking', message: '¿Dónde puedo consultar si el acceso al Metro está operativo?', availability: '', own: false, closed: false, createdAt: DEMO_START - 3600000, replies: [{ text: 'Consulta el estado de los ascensores con el operador antes de salir. El mapa de ejemplo no confirma su funcionamiento.', own: false, createdAt: DEMO_START - 1800000 }] },
+        { id: 2, category: 'share', zone: 'Leioa', title: 'Plaza de garaje por unas horas · ejemplo', message: 'Ejemplo de cesión temporal cerca del Metro. No es una oferta real ni permite reservar una plaza.', availability: 'De 18:00 a 21:00 · horario ilustrativo', own: false, closed: false, createdAt: DEMO_START - 2700000, replies: [] }
+      ]
     };
   }
-  function reading(parking, state) {
-    const updatedAt = state.readingBase - parking.age * 1000;
+  function freshness(state, age) {
+    const updatedAt = state.readingBase - age * 1000;
     const ageMs = Math.max(0, state.now - updatedAt);
     const status = state.dataMode === 'offline' ? 'offline'
       : state.dataMode === 'stale' || ageMs > MAX_AGE_MS ? 'stale' : 'fresh';
-    return { status, updatedAt, ageMs, available: status === 'fresh' ? parking.spaces : null };
+    return { status, updatedAt, ageMs };
+  }
+  function reading(parking, state) {
+    const data = freshness(state, parking.age);
+    return { ...data, available: data.status === 'fresh' ? parking.spaces : null };
+  }
+  function airReading(station, state) {
+    const data = freshness(state, station.age);
+    return { ...data, value: data.status === 'fresh' ? station.pm25 : null };
+  }
+  function parkingStatus(parking, state) {
+    const data = reading(parking, state);
+    if (data.available === null) return { ...data, kind: 'unknown', label: 'Desconocido' };
+    if (data.available === 0) return { ...data, kind: 'full', label: 'Completo' };
+    const recommended = results(state).find(p => reading(p, state).available > 0);
+    return { ...data, kind: recommended?.id === parking.id ? 'recommended' : 'available', label: recommended?.id === parking.id ? 'Recomendado' : 'Plazas orientativas' };
   }
   function changeDataMode(state, mode) {
     if (!['fresh', 'stale', 'offline'].includes(mode)) throw new RangeError('Unknown data mode');
@@ -77,9 +116,17 @@ const AparkaModel = (() => {
     const arrival = `${String(Math.floor(arrivalMinutes / 60) % 24).padStart(2, '0')}:${String(arrivalMinutes % 60).padStart(2, '0')}${arrivalMinutes >= 1440 ? ' (+1 día)' : ''}`;
     return { mode, steps, duration, arrival, uncertainty: mode === 'car' ? 9 : mode === 'metro' ? 4 : 5 };
   }
+  function journeyOptions(state) {
+    return ['metro', 'bike', 'car'].map(mode => journey(mode, state.departure)).sort((a, b) => a.duration - b.duration);
+  }
+  function personalImpact(state) {
+    const tickets = state.ticketClaims.filter(ticket => ticket.status === 'validated').length;
+    return { tickets, mobilityPoints: tickets * TICKET_REWARD, co2Kg: tickets * MOBILITY_EQUIVALENCE.co2Kg, minutes: tickets * MOBILITY_EQUIVALENCE.minutes };
+  }
   function submitReport(state, { status, stopped }) {
     if (state.moving || !stopped) return fail('NOT_STOPPED', 'Confirma que estás parado antes de enviar un reporte.');
-    if (!['free', 'occupied', 'verify'].includes(status)) return fail('INVALID_REPORT', 'Selecciona qué has observado.');
+    if (state.dataMode === 'offline') return fail('OFFLINE', 'Sin conexión no se puede enviar este reporte de ejemplo.');
+    if (!['free', 'occupied', 'verify', 'incident'].includes(status)) return fail('INVALID_REPORT', 'Selecciona qué has observado.');
     const parking = PARKINGS.find(p => p.id === state.selectedParking);
     if (!parking) return fail('NO_SENSOR', 'Selecciona un aparcamiento con un sensor identificado.');
     const report = { id: state.reports.length + 1, observation: status, parkingId: parking.id, sensorId: parking.sensor.id, submittedAt: state.now, validated: false };
@@ -88,12 +135,45 @@ const AparkaModel = (() => {
     return { ok: true, report };
   }
   function validateReport(state, id) {
+    if (state.moving) return fail('MOVING', 'Completa esta acción cuando estés parado.');
+    if (state.dataMode === 'offline') return fail('OFFLINE', 'Recupera la conexión de ejemplo antes de validar.');
     const report = state.reports.find(item => item.id === id);
     if (!report) return fail('NO_REPORT', 'Primero envía un reporte de ejemplo.');
     if (report.validated) return fail('ALREADY_VALIDATED', 'Este reporte ya fue validado. No se duplican los puntos.');
     report.validated = true;
     state.points += 10;
     return { ok: true, points: state.points };
+  }
+  function addForumThread(state, { category, zone, title, message, availability, stopped }) {
+    if (state.moving || !stopped) return fail('NOT_STOPPED', 'Confirma que estás parado para escribir en el foro.');
+    if (state.dataMode === 'offline') return fail('OFFLINE', 'No se puede publicar con el estado sin conexión.');
+    if (!Object.hasOwn(FORUM_CATEGORIES, category) || !FORUM_ZONES.includes(zone)) return fail('INVALID_TOPIC', 'Elige una categoría y una zona del listado.');
+    const cleanTitle = typeof title === 'string' ? title.trim() : '';
+    const cleanMessage = typeof message === 'string' ? message.trim() : '';
+    const hours = typeof availability === 'string' ? availability.trim() : '';
+    if (cleanTitle.length < 5 || cleanTitle.length > 80 || cleanMessage.length < 10 || cleanMessage.length > 600) return fail('INVALID_TEXT', 'Usa un título de 5 a 80 caracteres y un mensaje de 10 a 600.');
+    if (category === 'share' && (hours.length < 5 || hours.length > 100)) return fail('INVALID_AVAILABILITY', 'Indica la fecha y la franja horaria de la cesión, entre 5 y 100 caracteres.');
+    const thread = { id: state.forumThreads.length + 1, category, zone, title: cleanTitle, message: cleanMessage, availability: category === 'share' ? hours : '', own: true, closed: false, createdAt: state.now, replies: [] };
+    state.forumThreads.push(thread);
+    state.selectedThreadId = thread.id;
+    return { ok: true, thread };
+  }
+  function replyForumThread(state, { id, message, stopped }) {
+    if (state.moving || !stopped) return fail('NOT_STOPPED', 'Confirma que estás parado para responder.');
+    if (state.dataMode === 'offline') return fail('OFFLINE', 'No se puede responder con el estado sin conexión.');
+    const thread = state.forumThreads.find(item => item.id === id);
+    if (!thread || thread.closed) return fail('CLOSED_THREAD', 'Este tema no está disponible para respuestas.');
+    const text = typeof message === 'string' ? message.trim() : '';
+    if (text.length < 3 || text.length > 600) return fail('INVALID_REPLY', 'Escribe una respuesta de 3 a 600 caracteres.');
+    thread.replies.push({ text, own: true, createdAt: state.now });
+    return { ok: true };
+  }
+  function closeForumThread(state, id) {
+    if (state.moving) return fail('MOVING', 'Gestiona la publicación cuando estés parado.');
+    const thread = state.forumThreads.find(item => item.id === id);
+    if (!thread?.own || thread.closed) return fail('NOT_OWN_THREAD', 'Solo puedes cerrar una publicación tuya que siga abierta.');
+    thread.closed = true;
+    return { ok: true };
   }
   function completeJourney(state) {
     if (state.moving) return fail('MOVING', 'Finaliza el modo conducción cuando estés parado.');
@@ -172,5 +252,5 @@ const AparkaModel = (() => {
       && ['normal', 'wide'].includes(value.spacing)
       && (!Object.hasOwn(value, 'theme') || ['light', 'dark'].includes(value.theme));
   }
-  return Object.freeze({ DEMO_START, MAX_AGE_MS, MAX_TICKET_BYTES, TICKET_IMAGE_TYPES, TICKET_REWARD, DEFAULTS, PARKINGS, formatTime, formatAge, createState, reading, changeDataMode, compatible, results, journey, submitReport, validateReport, completeJourney, linkBarik, unlinkBarik, submitTicket, validateTicket, prepareRedemption, redeem, validPreferences });
+  return Object.freeze({ DEMO_START, MAX_AGE_MS, MAX_TICKET_BYTES, TICKET_IMAGE_TYPES, TICKET_REWARD, MOBILITY_EQUIVALENCE, FORUM_CATEGORIES, FORUM_ZONES, ENVIRONMENT, DEFAULTS, PARKINGS, formatTime, formatAge, createState, reading, airReading, parkingStatus, changeDataMode, compatible, results, journey, journeyOptions, personalImpact, submitReport, validateReport, addForumThread, replyForumThread, closeForumThread, completeJourney, linkBarik, unlinkBarik, submitTicket, validateTicket, prepareRedemption, redeem, validPreferences });
 })();

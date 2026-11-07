@@ -58,6 +58,8 @@
     storageWarning = 'No se pudieron cargar tus preferencias. Puedes usar la web sin guardarlas.';
   }
   const state = M.createState(preferences);
+  const officialCatalog = globalThis.AparkaParkingCatalog;
+  let catalogQuery = '';
   let ticketPhoto = null;
   let photoGeneration = 0;
   let photoError = '';
@@ -78,7 +80,8 @@
     public: ['Panel público', renderPublic], impact: ['AurrezTU', renderImpact], welcome: ['Bienvenido', renderWelcome],
     sensor: ['Procedencia del dato', renderSensor], barik: ['Mi Barik', renderBarik],
     ticket: ['Acreditar P+R + Metro', renderTicket], 'ticket-status': ['Estado del justificante', renderTicketStatus],
-    forum: ['PartekaTU · Foro', renderForum], thread: ['PartekaTU · Conversación', renderThread]
+    forum: ['PartekaTU · Foro', renderForum], thread: ['PartekaTU · Conversación', renderThread],
+    catalog: ['Catálogo oficial', renderOfficialCatalog]
   };
   function button(label, action, options = {}) {
     const { kind = '', view = '', id = '', disabled = false, full = false, small = false, glyph = '' } = options;
@@ -138,11 +141,11 @@
   }
   function mapMarkup(interactive = true, compact = false) {
     const focus = ['parking', 'sensor'].includes(state.view) ? state.selectedParking : '';
-    const key = focus ? `${state.view}:${focus}` : state.view;
-    return `<section class="geographic-map${compact ? ' compact-map' : ''}" data-leaflet-map data-map-key="${e(key)}" data-map-focus="${e(focus)}" data-map-parkings="${interactive}" data-map-status="loading" aria-label="Mapa de Bilbao y Leioa">
+    const key = focus ? `${state.view}:${focus}` : `${state.view}:${state.destination}`;
+    return `<section class="geographic-map${compact ? ' compact-map' : ''}" data-leaflet-map data-map-key="${e(key)}" data-map-focus="${e(focus)}" data-map-parkings="${interactive}" data-map-status="loading" aria-label="Mapa de Bizkaia">
       <div class="geographic-map-tools" role="group" aria-label="Controles de cartografía">
-        <button type="button" data-map-command="bilbao">Bilbao</button>
-        <button type="button" data-map-command="all">Bilbao y Leioa</button>
+        <button type="button" data-map-command="all">${icon('map')} Toda Bizkaia</button>
+        ${M.municipalityFor(state.destination) ? `<button type="button" data-map-command="destination">${icon('pin')} Centrar destino</button>` : ''}
         ${focus ? '<button type="button" data-map-command="focus">Centrar aparcamiento</button>' : ''}
         <label><input type="checkbox" data-map-command="pressure" checked> Presión · ejemplo</label>
       </div>
@@ -150,44 +153,58 @@
         <summary><strong>BateraTU</strong><span>Refugios, aire y recorridos a la sombra</span></summary>
         <div class="environment-options">
           ${[['refuges', 'Refugios climáticos'], ['air', 'Calidad del aire'], ['shade', 'Itinerarios sombreados']].map(([key, label]) => `<label><input type="checkbox" data-map-layer="${key}"${state.environmentLayers[key] ? ' checked' : ''}>${label}</label>`).join('')}
-        </div><p>Capas de ejemplo. Sombra y accesos no verificados; las cifras de aire no son mediciones reales.</p>
+        </div><p>Muestra ambiental en Bilbao y Leioa. Sin datos ambientales en el resto de municipios. Sombra, accesos y cifras de aire no verificados.</p>
         <div class="environment-key"><span>R · Refugio</span><span>A · PM₂.₅ en µg/m³</span><span>Trazo discontinuo · Paseo a la sombra</span></div>
       </details>
       <div class="live-map" role="region" aria-label="Mapa interactivo. Usa los botones más y menos para cambiar el zoom y las flechas para desplazarte." tabindex="0"></div>
       <div class="geographic-map-status"><span data-map-status role="status">Cargando cartografía…</span><button type="button" data-map-command="retry" hidden>Reintentar</button></div>
-      <p class="geographic-map-note">Calles de OpenStreetMap. Plazas, sensores y zonas de presión de ejemplo. Los marcadores indican ubicaciones aproximadas.</p>
+      <p class="geographic-map-note">Cartografía de Bizkaia · muestra en ${M.MUNICIPALITIES.length} municipios. Plazas y sensores simulados; los marcadores nuevos son referencias municipales, no parkings verificados. Presión de ejemplo en Bilbao.</p>
     </section>`;
   }
   const mapLegend = () => `<div class="map-legend"><div class="legend-items"><span><i class="legend-dot"></i>Baja presión</span><span><i class="legend-triangle"></i>Alta presión</span><span><i class="legend-square"></i>Desconocido</span></div><span class="pressure-spectrum" aria-hidden="true"></span><span>Predicción simulada, no garantía</span></div>`;
   function searchbar() {
-    return `<form id="destination-form" class="searchbar">${icon('search')}<div class="search-field"><label for="destination">¿DÓNDE QUIERES APARCAR?</label><input id="destination" name="destination" value="${e(state.destination)}" placeholder="Una dirección, barrio o destino" maxlength="100" required></div><div class="divider"></div><span class="location-hint">${icon('pin')} ${e(state.origin)}</span><button class="button" type="submit">Buscar ${icon('arrow')}</button></form>`;
+    return `<form id="destination-form" class="searchbar">${icon('search')}<div class="search-field"><label for="destination">¿DÓNDE QUIERES APARCAR?</label><input id="destination" name="destination" value="${e(state.destination)}" placeholder="Municipio o destino de Bizkaia" list="destination-options" maxlength="100" required autocomplete="off"><datalist id="destination-options"><option value="Bizkaia">Todo el territorio</option>${M.MUNICIPALITIES.map(municipality => `<option value="${e(municipality.name)}">${e(municipality.region)}</option>`).join('')}<option value="San Mamés"></option><option value="Hospital de Basurto"></option><option value="Casco Viejo"></option></datalist></div><div class="divider"></div><span class="location-hint">${icon('pin')} ${e(state.origin)}</span><button class="button" type="submit">Buscar ${icon('arrow')}</button></form>`;
   }
-  function renderMap() {
+  function routeUnavailable() {
+    return back('results', 'Volver a los aparcamientos') + heading('Cómo llegar a tu destino.', `${e(state.origin)} → ${e(state.destination)}`, '', 'GidaTU · Guiar')
+      + card('unknown', 'ITINERARIO NO DISPONIBLE', 'Aún no hay una ruta calculada para este trayecto.', 'No tenemos un motor de rutas ni horarios conectados para este destino. No se muestran tiempos, conexiones o accesos sin verificar.', '', `${goButton('Cambiar destino', 'search', { kind: 'secondary', small: true, glyph: 'pin' })}${button('Ver ejemplo Getxo → San Mamés', 'reference-route', { kind: 'quiet', small: true, glyph: 'arrow' })}`);
+  }
+  function routeRecommendation() {
     const alternatives = M.journeyOptions(state);
     const recommended = alternatives[0];
+    if (!recommended) return card('', 'GidaTU · Movilidad', 'Cada destino, su conexión.', 'Consulta las opciones del municipio y confirma horarios y accesibilidad con el operador. Los itinerarios fuera del ejemplo Getxo → San Mamés están pendientes de integración.', '', goButton('Consultar el trayecto', 'compare', { kind: 'secondary', full: true, glyph: 'arrow' }));
+    return `<section class="card positive route-recommendation"><div class="recommendation-head">${icon('train')} GidaTU</div><h3>Alternativa recomendada</h3>
+      <div class="big-time">${recommended.duration} <small>min · ${modeNames[recommended.mode]}</small></div>
+      <div class="mode-summary">${alternatives.map(route => `<button class="mode-block mode-${route.mode}${route.mode === recommended.mode ? ' fastest' : ''}" data-action="select-route" data-id="${route.mode}">${icon(route.mode === 'metro' ? 'train' : route.mode)}<span>${modeNames[route.mode]}</span><strong>${route.duration} min</strong>${route.mode === recommended.mode ? '<small>Más rápida</small>' : ''}</button>`).join('')}</div>
+      ${goButton('Comparar recorridos', 'compare', { kind: 'green', full: true, glyph: 'arrow' })}<p class="footnote" style="margin-top:13px">Incluye búsqueda y tramo a pie. Tiempos simulados para Getxo → San Mamés; no reserva plazas.</p></section>`;
+  }
+  function selectDestination(destination) {
+    state.destination = destination;
+    const first = M.results(state)[0];
+    if (first) state.selectedParking = first.id;
+  }
+  function renderMap() {
     const all = M.results(state);
-    return heading('Encuentra aparcamiento en Bilbao y Leioa.', 'Revisa el estado, el sensor y la antigüedad de cada lectura.', button('Mis preferencias', 'go', { view: 'profile', kind: 'secondary', glyph: 'access' }), 'AurkiTU · Encontrar')
+    return heading('Encuentra aparcamiento en Bizkaia.', 'De la costa al interior. Tu destino, tus necesidades de acceso.', goButton('Catálogo oficial', 'catalog', { kind: 'secondary', glyph: 'shield' }) + button('Mis preferencias', 'go', { view: 'profile', kind: 'secondary', glyph: 'access' }), 'AurkiTU · Encontrar')
       + connectionBanner() + searchbar()
       + `<div class="map-layout"><div class="stack"><section class="panel map-panel"><div class="map-filters"><div class="chips"><button class="chip active" data-action="refresh">${icon('clock')} Ahora</button><button class="chip${state.preferences.pmr ? ' active' : ''}" data-action="filters">${icon('access')} PMR</button><button class="chip${state.preferences.preferPr ? ' active' : ''}" data-action="filters">P+R</button><button class="chip" data-action="filters">${icon('sliders')} Filtros</button></div><span class="time-pill">${icon('clock')}<span data-clock>${time(state.now).slice(0, 5)}</span> · ejemplo</span></div>${mapMarkup()}${mapLegend()}</section>
-        <div class="section-title" style="margin-top:7px"><h2>Opciones que encajan contigo</h2><button class="mini-link" data-action="go" data-view="results" style="margin:0">Ver todas ${icon('arrow')}</button></div><div class="parking-list">${all.length ? all.slice(0, 2).map(p => parkingRow(p)).join('') : emptyResults()}</div></div>
-        <aside class="stack map-side"><section class="card positive route-recommendation"><div class="recommendation-head">${icon('train')} GidaTU</div><h3>Alternativa recomendada</h3>
-        <div class="big-time">${recommended.duration} <small>min · ${modeNames[recommended.mode]}</small></div>
-        <div class="mode-summary">${alternatives.map(r => `<button class="mode-block mode-${r.mode}${r.mode === recommended.mode ? ' fastest' : ''}" data-action="select-route" data-id="${r.mode}">${icon(r.mode === 'metro' ? 'train' : r.mode)}<span>${modeNames[r.mode]}</span><strong>${r.duration} min</strong>${r.mode === recommended.mode ? '<small>Más rápida</small>' : ''}</button>`).join('')}</div>
-        ${goButton('Comparar recorridos', 'compare', { kind: 'green', full: true, glyph: 'arrow' })}<p class="footnote" style="margin-top:13px">Incluye búsqueda y tramo a pie. Tiempos simulados para Getxo → San Mamés; no reserva plazas.</p></section>
-        <section class="card warning preventive-alert"><div class="card-icon"><span class="eyebrow module-name">AurreraTU · Aviso preventivo</span>${icon('bell')}</div><h3>Alta ocupación: evento en San Mamés.</h3><p>Previsión de presión alta de 18:00 a 19:00. Considera un P+R antes de entrar en la zona.</p><button class="mini-link" data-action="go" data-view="event">Ver alternativas ${icon('arrow')}</button></section>
+        <div class="section-title" style="margin-top:7px"><h2>Opciones en ${e(M.municipalityFor(state.destination)?.name || state.destination)}</h2><button class="mini-link" data-action="go" data-view="results" style="margin:0">Ver todas ${icon('arrow')}</button></div><div class="parking-list">${all.length ? all.slice(0, 3).map(p => parkingRow(p)).join('') : emptyResults()}</div></div>
+        <aside class="stack map-side">${routeRecommendation()}
+        ${M.isTerritory(state.destination) || M.municipalityFor(state.destination)?.id === 'bilbao' ? `<section class="card warning preventive-alert"><div class="card-icon"><span class="eyebrow module-name">AurreraTU · Bilbao · Ejemplo</span>${icon('bell')}</div><h3>Evento en San Mamés.</h3><p>Presión alta simulada de 18:00 a 19:00. Considera un P+R antes de entrar en la zona.</p><button class="mini-link" data-action="go" data-view="event">Ver alternativas ${icon('arrow')}</button></section>` : card('unknown', 'AurreraTU · Avisos', 'Sin avisos verificados para este municipio.', 'No hay una agenda conectada para esta zona. La ausencia de avisos no confirma que no existan incidencias.')}
         <section class="panel panel-pad quick-community"><div class="eyebrow green module-name">PartekaTU</div><h3>Red Colaborativa</h3>${reportForm(true)}${goButton('Abrir el foro vecinal', 'forum', { kind: 'quiet', full: true, glyph: 'chat' })}</section></aside></div>`;
   }
   function renderSearch() {
     return back() + heading('Tu próximo destino.', 'Busca en Bizkaia sin guardar un historial de tus trayectos.')
-      + `<div class="wide-narrow">${searchbar()}<div class="two-col"><section class="panel panel-pad stack"><h3 style="margin:0">Lugares que quizá buscas</h3>${['San Mamés', 'Hospital de Basurto', 'Casco Viejo'].map((name, i) => `<button class="option-row" data-action="destination" data-id="${e(name)}">${icon(i === 1 ? 'access' : 'pin')}<div><strong>${e(name)}</strong><small>Bilbao · destino de ejemplo</small></div>${icon('chevron')}</button>`).join('')}</section><div class="stack">${card('', 'SIN RASTREO', 'Tu búsqueda se queda aquí.', 'Origen y destino solo se mantienen durante esta visita. No pedimos una cuenta ni guardamos tus desplazamientos.', '', goButton('Elegir origen manualmente', 'location', { kind: 'secondary', small: true }))}${card('positive', 'ANTES QUE LA DISTANCIA', 'Primero, que sea compatible.', 'Tus condiciones de acceso, PMR y preferencias de movilidad acompañan cada búsqueda.')}</div></div></div>`;
+      + `<div class="wide-narrow">${searchbar()}<div class="two-col"><section class="panel panel-pad stack"><h3 style="margin:0">Destinos de costa e interior</h3>${M.MUNICIPALITIES.map(municipality => `<button class="option-row" data-action="destination" data-id="${e(municipality.name)}">${icon('pin')}<div><strong>${e(municipality.name)}</strong><small>${e(municipality.region)} · datos de ejemplo</small></div>${icon('chevron')}</button>`).join('')}</section><div class="stack">${card('', 'SIN RASTREO', 'Tu búsqueda se queda aquí.', 'Origen y destino solo se mantienen durante esta visita. No pedimos una cuenta ni guardamos tus desplazamientos.', '', goButton('Elegir origen manualmente', 'location', { kind: 'secondary', small: true }))}${card('positive', 'ANTES QUE LA DISTANCIA', 'Primero, que sea compatible.', 'Tus condiciones de acceso, PMR y preferencias de movilidad acompañan cada búsqueda.')}${card('unknown', 'ALCANCE TERRITORIAL', 'Pensado para toda Bizkaia.', `La muestra contiene ${M.MUNICIPALITIES.length} municipios. La cobertura completa, las plazas reales y los horarios están pendientes de conectar con los operadores.`)}</div></div></div>`;
   }
   function emptyResults() {
+    if (!M.isTerritory(state.destination) && !M.municipalityFor(state.destination)) return `<section class="panel empty-state"><div class="empty-icon">${icon('pin')}</div><h2>Todavía no hay datos para este destino.</h2><p>El alcance previsto es toda Bizkaia. Este destino aún no forma parte del catálogo de ejemplo; no mostramos aparcamientos de otro municipio como si estuvieran cerca.</p>${goButton('Consultar destinos disponibles', 'search', { kind: 'secondary', glyph: 'search' })}</section>`;
     return `<section class="panel empty-state"><div class="empty-icon">${icon('search')}</div><h2>No hay opciones compatibles.</h2><p>No hemos desactivado tus necesidades de accesibilidad. Puedes ampliar la distancia a pie o revisar otros filtros.</p><div class="row">${button('Revisar filtros', 'filters', { glyph: 'sliders' })}${goButton('Buscar otro destino', 'search', { kind: 'secondary' })}</div></section>`;
   }
   function renderResults() {
     const parkings = M.results(state);
-    return back() + heading(`Tu sitio cerca de ${state.destination}.`, `${parkings.length} opciones de ejemplo compatibles con tus preferencias.`, button('Filtrar resultados', 'filters', { kind: 'secondary', glyph: 'sliders' }))
-      + connectionBanner() + `<div class="split"><section class="stack">${banner('No todo es llegar en coche.', 'Compara el tiempo total, incluida la búsqueda y el último tramo a pie.', 'train', 'neutral')}${parkings.length ? `<div class="parking-list">${parkings.map(p => parkingRow(p)).join('')}</div>` : emptyResults()}<p class="footnote">Catálogo local de ejemplo de Bilbao y su entorno. Esta web no consulta una base de datos geográfica ni disponibilidad en vivo.</p></section><div class="stack"><section class="panel map-panel">${mapMarkup(true, true)}${mapLegend()}</section>${goButton('Comparar coche, Metro y bici', 'compare', { kind: 'green', full: true, glyph: 'arrow' })}</div></div>`;
+    return back() + heading(`Aparcamiento en ${e(M.municipalityFor(state.destination)?.name || state.destination)}.`, `${parkings.length} opciones de ejemplo compatibles con tus preferencias.`, button('Filtrar resultados', 'filters', { kind: 'secondary', glyph: 'sliders' }))
+      + connectionBanner() + `<div class="split"><section class="stack">${banner('No todo es llegar en coche.', 'Valora también el transporte público y el último tramo a pie. Confirma los servicios con el operador.', 'train', 'neutral')}${parkings.length ? `<div class="parking-list">${parkings.map(p => parkingRow(p)).join('')}</div>` : emptyResults()}<p class="footnote">Muestra territorial en ${M.MUNICIPALITIES.length} municipios de Bizkaia. Ubicaciones, plazas y condiciones simuladas; sin disponibilidad en vivo ni distancias calculadas al destino.</p></section><div class="stack"><section class="panel map-panel">${mapMarkup(true, true)}${mapLegend()}</section>${goButton('Consultar cómo llegar', 'compare', { kind: 'green', full: true, glyph: 'arrow' })}</div></div>`;
   }
   function renderParking() {
     const p = selectedParking();
@@ -229,6 +246,7 @@
       ${goButton('Ver el impacto agregado en AurrezTU', 'impact', { kind: 'quiet', full: true, glyph: 'chart' })}</section>`;
   }
   function renderCompare() {
+    if (!M.referenceJourney(state)) return routeUnavailable();
     const alternatives = M.journeyOptions(state);
     const fastest = alternatives[0];
     const savings = M.journey('car', state.departure).duration - fastest.duration;
@@ -246,12 +264,14 @@
       + `<div style="margin-bottom:22px">${banner(`${modeNames[fastest.mode]}: ${fastest.duration} min en total.`, savings > 0 ? `${savings} minutos menos que ir solo en coche en este escenario.` : 'Es la alternativa de menor duración en este escenario.', 'clock', 'neutral')}</div><div class="three-col">${routeCards}</div><p class="footnote" style="margin-top:21px">Duraciones simuladas para Getxo → San Mamés. No se recalculan geográficamente para otras direcciones. Se prioriza la menor duración; no se garantiza una plaza ni la disponibilidad de Bizkaibizi.</p>`;
   }
   function renderRoute() {
+    if (!M.referenceJourney(state)) return routeUnavailable();
     const r = M.journey(state.selectedMode, state.departure);
     const done = state.completedModes.includes(state.selectedMode);
     return back('compare', 'Cambiar alternativa') + heading('Tu camino, paso a paso.', `${modeNames[state.selectedMode]} · ${state.origin} → ${state.destination}`, `<span class="chip active">${icon('access')} Recorrido accesible de referencia</span>`)
       + `<div class="split"><section class="panel panel-pad"><div class="panel-head" style="padding:0 0 15px"><h2>Así llegas</h2><span class="chip">${r.duration} min · ${r.arrival}</span></div><div class="itinerary">${r.steps.map((s, i) => `<div class="route-step"><div class="step-icon">${icon(s.icon)}</div><div><h3>${i + 1}. ${e(s.label)}</h3><p>${i === 1 && state.selectedMode === 'metro' ? 'Confirma una plaza al llegar. No está reservada.' : i === 2 && state.selectedMode === 'metro' ? 'Frecuencias y ascensores: confirmar con Metro Bilbao.' : 'Trayecto orientativo de ejemplo.'}</p></div><span class="step-time">${s.minutes} min</span></div>`).join('')}</div></section><div class="stack"><div class="metrics two">${metric(r.duration + ' min', 'Tiempo total', `Variación estimada ±${r.uncertainty} min`)}${metric(r.arrival, 'Llegada orientativa', 'No es navegación real')}</div>${banner('Confirma la accesibilidad antes de salir.', 'El estado de los ascensores y las condiciones de acceso pueden cambiar.', 'access', 'neutral')}${state.dataMode !== 'fresh' ? banner('No hay disponibilidad confirmada.', 'La ruta es orientativa; los datos de aparcamiento figuran como desconocidos.', 'offline', 'unknown') : ''}${state.selectedMode !== 'bike' ? button('Iniciar recorrido', 'start-drive', { kind: 'green', full: true, glyph: 'arrow' }) : ''}${button(done ? 'Recorrido ya completado' : 'He llegado · finalizar recorrido', 'complete-journey', { kind: 'secondary', full: true, disabled: done, glyph: 'check' })}<p class="footnote">La web no accede al GPS, no guarda trayectos y no proporciona indicaciones de navegación reales.</p></div></div>`;
   }
   function renderDrive() {
+    if (!M.referenceJourney(state)) return routeUnavailable();
     if (!state.moving) return renderRoute();
     return heading('Ahora, la atención en la vía.', 'Las acciones de comunidad y el resto de pantallas están pausadas.')
       + `<div class="split"><section class="drive-view"><div class="eyebrow">RECORRIDO ORIENTATIVO · SIN GPS</div><div class="row" style="justify-content:space-between"><div><div class="drive-distance">600 m</div><h2>Salida hacia<br>${state.selectedMode === 'metro' ? 'P+R Leioa' : 'tu destino'}</h2></div><span class="direction-icon">${icon('arrow')}</span></div><p>Ejemplo visual. Sigue la señalización real y no interactúes mientras conduces.</p></section><div class="stack"><div class="metrics two">${metric('8 min', 'Hasta el siguiente tramo', 'Estimación de ejemplo')}${metric(M.journey(state.selectedMode, state.departure).arrival, 'Llegada final', 'Trayecto orientativo')}</div>${banner('Los reportes pueden esperar.', 'No se muestran formularios ni se permite enviar información en marcha.', 'shield', 'neutral')}${button(state.muted ? 'Activar voz' : 'Silenciar voz', 'toggle-voice', { kind: 'secondary', full: true, glyph: state.muted ? 'mute' : 'sound' })}${button('Estoy parado · volver a mi ruta', 'stop-drive', { kind: 'green', full: true })}<p class="footnote">La voz, si está disponible en el navegador, solo lee un aviso de seguridad de ejemplo.</p></div></div>`;
@@ -475,6 +495,29 @@
     return back('settings', 'Volver a accesibilidad') + heading('Llegar, paso a paso.', 'Una explicación sencilla del recorrido de referencia.')
       + `<div class="split"><section class="reading-preview" style="font-family:Lexend,sans-serif"><h3>Una buena alternativa.</h3><p>Vas a San Mamés.</p><ol><li>Ve a P+R Leioa.</li><li>Continúa en Metro L1.</li><li>Camina unos 4 minutos.</li></ol><p>El trayecto dura unos 31 minutos.</p><p><strong>La plaza no está reservada.</strong><br>Comprueba que puedes aparcar al llegar.</p></section><div class="stack">${button('Escuchar la explicación', 'read-aloud', { kind: 'secondary', full: true, glyph: 'sound' })}${button('Usar esta lectura en toda la web', 'enable-reading', { kind: 'green', full: true, glyph: 'check' })}${button('Ver la ruta', 'select-route', { id: 'metro', kind: 'secondary', full: true, glyph: 'arrow' })}${banner('Lectura clara, información completa.', 'Los avisos importantes nunca se ocultan. El dato caducado siempre figura como desconocido.', 'info', 'neutral')}</div></div>`;
   }
+  function renderOfficialCatalog() {
+    const source = M.CATALOG_SOURCE;
+    const records = Array.isArray(officialCatalog?.records) ? officialCatalog.records : [];
+    const results = M.officialCatalogResults(records, catalogQuery);
+    const retrievedAt = new Date(officialCatalog?.retrievedAt);
+    const retrievedLabel = Number.isFinite(retrievedAt.getTime()) ? new Intl.DateTimeFormat('es-ES', { dateStyle: 'long', timeZone: 'Europe/Madrid' }).format(retrievedAt) : 'Sin fecha de consulta';
+    const sourceLink = `<a href="${e(source.url)}" target="_blank" rel="noopener noreferrer" aria-label="${e(source.title)} · ${e(source.publisher)}">${e(source.publisher)}</a>`;
+    const entries = results.map(record => {
+      const pmr = record.pmr === true ? 'Sí, según la fuente' : record.pmr === false ? 'No, según la fuente' : 'Sin dato';
+      const mapUrl = `https://www.openstreetmap.org/search?query=${encodeURIComponent(`${record.address}, ${record.municipality}, Bizkaia`)}`;
+      return `<article class="catalog-entry"><div class="catalog-entry-title"><h3>${e(record.name)}</h3><p>${e(record.address)}</p><span>${e([record.municipality, record.district, record.neighborhood !== record.district ? record.neighborhood : ''].filter(Boolean).join(' · '))}</span></div>
+        <dl class="catalog-facts"><div><dt>Capacidad de residentes</dt><dd>${record.capacity === null ? 'Sin dato' : `${record.capacity} plazas`}</dd></div><div><dt>Plazas PMR</dt><dd>${pmr}</dd></div><div><dt>Ocupación actual</dt><dd>Sin dato</dd></div></dl>
+        <a class="button secondary small catalog-address" href="${e(mapUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Buscar la dirección de ${e(record.name)} en OpenStreetMap, nueva pestaña">${icon('map')} Ver dirección</a></article>`;
+    }).join('');
+    return heading('Aparcamientos con fuente oficial.', 'Cobertura incorporada: Bilbao. Catálogo municipal para residentes, sin ocupación en tiempo real.', goButton('Mapa de Bizkaia', 'map', { kind: 'secondary', glyph: 'map' }), 'AurkiTU · Datos documentados')
+      + `<section class="catalog-provenance" aria-labelledby="catalog-source-title"><h2 id="catalog-source-title">Fuente: ${sourceLink}</h2><div class="catalog-source-facts"><span><strong>${records.length}</strong> registros utilizables</span><span>Copia consultada: <strong>${e(retrievedLabel)}</strong></span><a href="${e(source.licenseUrl)}" target="_blank" rel="noopener noreferrer">${e(source.license)}</a></div>
+        <details><summary>Procedencia y calidad${officialCatalog?.excludedRecords ? ` · ${officialCatalog.excludedRecords} filas excluidas` : ''}</summary><p>Datos seleccionados y normalizados de la fuente municipal. Las filas excluidas no tienen nombre o dirección. No es un inventario completo de Bizkaia ni una consulta en vivo.</p><dl class="sensor-details"><dt>Conjunto de datos</dt><dd>${e(source.title)}</dd><dt>Origen descargable</dt><dd><a href="${e(source.downloadUrl)}" target="_blank" rel="noopener noreferrer">JSON municipal</a></dd><dt>Huella SHA-256</dt><dd><code>${e(officialCatalog?.sourceSha256 || 'No disponible')}</code></dd><dt>Datos sin publicar</dt><dd>Coordenadas, ocupación actual y acceso sin escalones. La fecha de consulta no es la fecha de una lectura de ocupación.</dd></dl></details></section>
+      <div class="catalog-access-note">${banner('Acceso reservado a residentes.', 'No son plazas de rotación. Requieren autorización; la existencia de plazas PMR no confirma que estén libres ni garantiza un acceso sin escalones. Tu compatibilidad no está verificada.', 'shield')}</div>
+      <form id="catalog-search-form" class="searchbar">${icon('search')}<div class="search-field"><label for="catalog-query">NOMBRE, DIRECCIÓN O MUNICIPIO</label><input id="catalog-query" name="query" type="search" value="${e(catalogQuery)}" maxlength="100" placeholder="Por ejemplo, Abando" autocomplete="off"></div><button class="button" type="submit">Buscar ${icon('arrow')}</button>${catalogQuery ? button('Limpiar', 'clear-catalog-search', { kind: 'quiet', small: true, glyph: 'close' }) : ''}</form>
+      <div class="section-title"><h2 id="catalog-results-title" tabindex="-1">${results.length} ${results.length === 1 ? 'aparcamiento documentado' : 'aparcamientos documentados'}</h2></div>
+      ${entries ? `<div class="catalog-list">${entries}</div>` : `<section class="empty-state"><h2>${records.length ? 'Sin registros oficiales para esta búsqueda.' : 'La copia del catálogo no está disponible.'}</h2><p>${records.length ? 'La fuente incorporada cubre aparcamientos de residentes de Bilbao. No se sustituyen otros municipios por resultados de Bilbao.' : 'No se muestran datos de ejemplo como si fueran oficiales. Puedes consultar la fuente municipal.'}</p>${records.length ? button('Ver todo el catálogo', 'clear-catalog-search', { kind: 'secondary', glyph: 'search' }) : sourceLink}</section>`}
+      <p class="footnote catalog-disclaimer">Las direcciones se consultan en OpenStreetMap solo al abrir el enlace. No se han geocodificado ni verificado entradas, tarifas o condiciones actuales. La copia local no se actualiza automáticamente.</p>`;
+  }
   function renderPrivacy() {
     return heading('Tus datos, bajo tu control.', 'La confianza empieza por explicar qué sabemos, qué no y qué guardamos.')
       + `<div class="split"><section class="panel panel-pad"><h2>Privacidad desde el principio</h2>${[
@@ -483,7 +526,8 @@
         ['chat', 'PartekaTU solo durante esta visita.', 'Las publicaciones, ofertas y respuestas del foro se mantienen en memoria y se pierden al recargar o cerrar. No se publican en Internet, no reservan plazas y no deben incluir datos personales.'],
         ['card', 'Barik personalizada, sin datos completos.', 'Solo pedimos un alias y cuatro dígitos de ejemplo. No se comprueba una identidad real. La vinculación se pierde al recargar o cerrar la página.'],
         ['upload', 'Tu foto se queda en el dispositivo.', 'El ticket se abre localmente y se calcula una huella para evitar duplicados. No hay subida a servidores ni OCR. La imagen se descarta al validar, quitarla, reemplazarla, desvincular Barik o cerrar la página. Las referencias quedan solo durante esta visita.'],
-        ['chat', 'Asistente local.', 'Usa respuestas guiadas y los datos de ejemplo. La conversación no se envía a una IA ni se guarda en el navegador. No escribas información personal.'],
+        ['chat', 'Asistente local.', 'Usa respuestas guiadas, ejemplos identificados y referencias al catálogo oficial. La conversación no se envía a una IA ni se guarda en el navegador. No escribas información personal.'],
+        ['shield', 'Catálogo oficial, copia local.', 'El catálogo de residentes procede del Ayuntamiento de Bilbao. La búsqueda se realiza en esta copia sin enviar el texto a terceros. Los enlaces a fuentes, licencia y direcciones abren sitios externos; solo al abrirlos reciben tu IP y, en OpenStreetMap, la dirección pública del aparcamiento consultado.'],
         ['pin', 'Ubicación opcional.', 'La web no solicita GPS. Puedes introducir origen y destino manualmente.'],
         ['sliders', 'Preferencias guardadas en este navegador.', 'Se conservan el tema nocturno, la accesibilidad y las condiciones de acceso. No usamos analítica.'],
         ['map', 'Cartografía de OpenFreeMap.', 'El mapa necesita Internet. OpenFreeMap y su red de distribución reciben tu dirección IP y las solicitudes de la zona que visualizas. No enviamos búsquedas, reportes, tarjetas, fotos ni conversaciones. No se solicita el GPS. La ocupación, los sensores y las capas de BateraTU son ejemplos locales.'],
@@ -506,9 +550,17 @@
       + `<div class="split"><form id="location-form" class="panel panel-pad form-stack"><h2>¿Desde dónde sales?</h2><label class="field">Origen<input name="origin" value="${e(state.origin)}" maxlength="100" required autocomplete="off" placeholder="Por ejemplo, Getxo"></label><label class="field">Destino<input name="destination" value="${e(state.destination)}" maxlength="100" required autocomplete="off" placeholder="Por ejemplo, San Mamés"></label><button class="button" type="submit">${icon('search')} Buscar sin compartir ubicación</button><p class="footnote">Estos lugares solo se mantienen durante esta visita. No se guardan como un historial.</p></form><div class="stack">${card('positive', 'NO NECESITAS DAR PERMISO', 'Sigues teniendo alternativas.', 'Consulta el mapa, el catálogo de aparcamientos y los recorridos de referencia introduciendo tus lugares manualmente.')}${card('', 'TRANSPARENCIA', 'Sin acceso al GPS.', 'Los datos de la página son de ejemplo. No calculamos distancias reales a partir de tu dirección ni te seguimos durante el recorrido.')}${goButton('Leer cómo tratamos tus datos', 'privacy', { kind: 'secondary', full: true, glyph: 'shield' })}</div></div>`;
   }
   function renderPublic() {
-    const offline = state.dataMode !== 'fresh' || M.PARKINGS.every(p => M.reading(p, state).available === null);
+    const parkings = M.results(state);
+    const municipality = M.municipalityFor(state.destination);
+    const place = municipality?.name || state.destination;
+    const offline = state.dataMode !== 'fresh' || !parkings.some(parking => M.reading(parking, state).available !== null);
+    const reference = M.referenceJourney(state);
     return heading('La movilidad también se lee aquí.', 'Información en una parada. Sin aplicaciones, registros ni smartphone.', button(offline ? 'Mostrar datos actualizados' : 'Mostrar panel sin actualización', 'toggle-public-data', { kind: 'secondary', glyph: offline ? 'refresh' : 'offline' }))
-      + `<section class="public-board"><header class="board-header"><div><div class="board-brand">AparkaTu.</div><p>Movilidad para toda Bizkaia · información pública</p></div><div class="board-clock">LEIOA · <span data-clock>${time(state.now).slice(0, 5)}</span><small>ESCENARIO DE EJEMPLO</small></div></header>${banner(offline ? 'Sin datos actualizados de aparcamiento.' : 'San Mamés: presión alta entre 18:00 y 19:00.', offline ? 'Desconocido no significa libre. Consulta la señalización y al personal de transporte.' : 'Evita buscar plaza en el núcleo. Considera P+R + Metro o una franja alternativa.', offline ? 'offline' : 'bell', offline ? 'unknown' : '')}<div class="board-layout"><div class="stack"><div class="eyebrow">APARCAMIENTOS · INFORMACIÓN ORIENTATIVA</div>${M.PARKINGS.map(p => parkingRow(p, true)).join('')}</div><aside class="board-message">${offline ? `<div class="eyebrow">ORIENTACIÓN SIN CONEXIÓN</div><h3>Puedes seguir orientándote.</h3><p>Consulta la señalización de la parada y al personal de transporte.</p><h3>Metro L1 / L2</h3><p>No mostramos llegadas en tiempo real sin una fuente vigente.</p><span class="connected-pill offline">Reconexión pendiente</span>` : `<div class="eyebrow green">LA OPCIÓN MÁS TRANQUILA</div><h3>P+R + Metro</h3><div class="big-time">31 <small>min</small></div><p>16 minutos menos que ir solo en coche.</p><p>Coche: 47 min, incluida la búsqueda.<br>Bici: 36 min; revisa el aviso de calor.</p><p class="footnote">Ruta sin escalones. Confirma ascensores y condiciones con el operador.</p>`}</aside></div><footer class="board-footer"><strong>Información disponible aquí. No necesitas un móvil para tomar una decisión.</strong><p>Una plaza orientativa no queda reservada. Todos los horarios, tiempos y disponibilidades son de ejemplo.</p></footer></section>`;
+      + `<section class="public-board"><header class="board-header"><div><div class="board-brand">AparkaTu.</div><p>Movilidad para toda Bizkaia · información pública</p></div><div class="board-clock">${e(place)} · <span data-clock>${time(state.now).slice(0, 5)}</span><small>ESCENARIO DE EJEMPLO</small></div></header>
+      ${banner(offline ? 'Sin datos actualizados de aparcamiento.' : `Información orientativa en ${place}.`, offline ? 'Desconocido no significa libre. Consulta la señalización y al personal de transporte.' : 'Plazas y condiciones simuladas. Confirma la disponibilidad y los accesos antes de desplazarte.', offline ? 'offline' : 'info', offline ? 'unknown' : 'neutral')}
+      <div class="board-layout"><div class="stack"><div class="eyebrow">APARCAMIENTOS · INFORMACIÓN ORIENTATIVA</div>${parkings.length ? parkings.map(parking => parkingRow(parking, true)).join('') : '<p>No hay opciones compatibles con datos para este destino.</p>'}</div><aside class="board-message">
+      ${reference && !offline ? `<div class="eyebrow green">GETXO → SAN MAMÉS · EJEMPLO</div><h3>P+R + Metro</h3><div class="big-time">${M.journey('metro', state.departure).duration} <small>min</small></div><p>Coche: ${M.journey('car', state.departure).duration} min, incluida la búsqueda.<br>Bici: ${M.journey('bike', state.departure).duration} min.</p><p class="footnote">Duraciones simuladas. Confirma ascensores y condiciones con el operador.</p>` : '<div class="eyebrow">TRANSPORTE PÚBLICO</div><h3>Conexiones por confirmar.</h3><p>Consulta los servicios, horarios y accesibilidad con el operador de esta zona.</p><p>No hay llegadas en tiempo real ni itinerarios verificados para este destino.</p>'}
+      </aside></div><footer class="board-footer"><strong>Información disponible aquí. No necesitas un móvil para tomar una decisión.</strong><p>Una plaza orientativa no queda reservada. Todos los horarios, tiempos y disponibilidades son de ejemplo.</p></footer></section>`;
   }
   function renderImpact() {
     const impacts = [
@@ -593,7 +645,7 @@
   }
   function renderNavigation() {
     const primary = [['map', 'map', 'Encontrar aparcamiento'], ['compare', 'train', 'Comparar rutas'], ['alerts', 'bell', 'Avisos preventivos'], ['report', 'users', 'Reportes y foro'], ['rewards', 'leaf', 'Puntos y recompensas']];
-    const other = [['impact', 'chart', 'Ahorro e impacto'], ['public', 'screen', ''], ['settings', 'access', '']];
+    const other = [['catalog', 'shield', 'Procedencia y cobertura'], ['impact', 'chart', 'Ahorro e impacto'], ['public', 'screen', ''], ['settings', 'access', '']];
     const nav = items => items.map(([view, glyph, description]) => `<a href="#${view}" class="nav-item"${activeNav() === view ? ' aria-current="page"' : ''}>${icon(glyph)}<span class="nav-copy"><strong>${e(views[view][0])}</strong>${description ? `<small>${e(description)}</small>` : ''}</span>${view === 'alerts' && state.preferences.alerts ? '<span class="nav-count">2</span>' : ''}</a>`).join('');
     document.getElementById('main-nav').innerHTML = nav(primary) + '<div class="nav-label">MÁS OPCIONES</div>' + nav(other);
     document.getElementById('breadcrumb-current').textContent = views[state.view][0];
@@ -609,6 +661,7 @@
     applyPreferences();
     renderNavigation();
     updateHeaderPoints();
+    document.querySelector('.demo-label').innerHTML = `<span class="status-dot"></span> ${state.view === 'catalog' ? 'Catálogo oficial · copia local' : 'Datos de ejemplo'}`;
     main.innerHTML = views[state.view][1]();
     AparkaMaps.mount(main, state, id => {
       state.selectedParking = id;
@@ -688,6 +741,10 @@
   function assistantAnswer(question) {
     const normalize = text => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const q = normalize(question);
+    if (/catalogo|datos reales|fuentes reales|fuente oficial|datos oficiales/.test(q)) {
+      const count = officialCatalog?.records?.length || 0;
+      return { text: `El catálogo oficial incorporado contiene ${count} aparcamientos municipales para residentes de Bilbao. Es una copia local del Ayuntamiento, separada del mapa simulado de Bizkaia.\nNo publica ocupación en tiempo real ni confirma que puedas acceder. La presencia de plazas PMR no garantiza que estén libres. Los demás municipios todavía no tienen una fuente oficial incorporada.`, view: 'catalog', label: 'Consultar el catálogo y su procedencia' };
+    }
     if (/bateratu|refugio|calidad del aire|itinerario sombreado/.test(q)) {
       return { text: 'En AurkiTU, abre BateraTU junto a los controles del mapa. Puedes activar refugios climáticos, lecturas de PM₂.₅ y recorridos a la sombra.\nSon capas de ejemplo: no confirman la seguridad del aire, la sombra ni la accesibilidad de un itinerario.', action: 'environment-map', label: 'Abrir BateraTU en el mapa' };
     }
@@ -697,6 +754,7 @@
     }
     if (/gidatu|bizkaibizi|comparar rutas/.test(q)) {
       const best = M.journeyOptions(state)[0];
+      if (!best) return { text: 'Todavía no hay un itinerario calculado para tu origen y destino. La comparación disponible es un ejemplo Getxo → San Mamés; sus tiempos no se aplican al resto de Bizkaia.', view: 'compare', label: 'Consultar mi trayecto' };
       return { text: `GidaTU compara coche, Bizkaibizi y P+R + Metro, incluyendo la búsqueda y el tramo a pie. La opción de menor duración en este escenario es ${modeNames[best.mode]}, con ${best.duration} minutos.\nLas duraciones y la disponibilidad son de ejemplo.`, view: 'compare', label: 'Abrir GidaTU' };
     }
     if (/saritu|barik|ticket|justificante|puntos|canj|recompensa|acreditar/.test(q)) {
@@ -723,16 +781,18 @@
     if (/guia|empezar|como uso|paso a paso|ayuda|funciona/.test(q)) {
       return { text: '1. Ajusta tu perfil de acceso.\n2. Busca el destino y revisa el sensor, su ubicación y la antigüedad del dato.\n3. Compara coche, Metro y bici contando también la búsqueda.\n4. Si usas P+R + transporte público, vincula Barik y adjunta tu ticket para acreditar puntos.\nUna plaza indicada nunca queda reservada.', view: 'profile', label: 'Empezar por mi perfil' };
     }
-    if (/aurkitu|sensor|zona|estado|plaza|aparcar|disponib|ocup|leioa|indautxu|abando|caduc|conexion/.test(q)) {
+    const municipality = M.municipalityFor(question);
+    if (municipality || /aurkitu|sensor|zona|estado|plaza|aparcar|disponib|ocup|caduc|conexion/.test(q)) {
       const parking = M.PARKINGS.find(p => q.includes(normalize(p.id)) || q.includes(normalize(p.sensor.id)));
-      const targets = parking ? [parking] : M.PARKINGS;
+      const targets = parking ? [parking] : municipality ? M.PARKINGS.filter(item => item.municipality === municipality.id) : M.results(state).slice(0, 3);
+      if (!targets.length) return { text: 'No hay datos compatibles para el destino seleccionado. La cobertura prevista es toda Bizkaia, pero no todos los municipios tienen datos en esta muestra.', view: 'search', label: 'Consultar destinos' };
       const readings = targets.map(p => {
         const r = M.reading(p, state);
         return `${p.name}: ${r.available === null ? 'desconocido, no equivale a libre' : `${r.available} plazas orientativas`}.\n${p.sensor.id} · ${p.sensor.location}.\nLectura ${time(r.updatedAt)} · hace ${ageText(r.ageMs)}.`;
       }).join('\n\n');
       return { text: `Consulta a las ${time(state.now)}:\n${readings}\n\nSon sensores y ubicaciones de ejemplo. Las lecturas caducan; consulta el detalle antes de decidir. No se reserva ninguna plaza.`, ...(parking ? { action: 'sensor', id: parking.id, label: 'Ver el sensor y su estado' } : { view: 'connection', label: 'Ver todas las fuentes' }) };
     }
-    return { text: 'Puedo ayudarte con el estado de Leioa, Indautxu o Abando; eventos y calor; Barik y tickets; o guiarte por la aplicación. Prueba «estado de Abando» o «cómo vinculo mi Barik».\nNo tengo información fuera de este escenario local.', view: 'map', label: 'Volver a explorar' };
+    return { text: 'Puedo consultar los ejemplos de municipios de Bizkaia, como Durango, Bermeo, Balmaseda o Bilbao; además de accesibilidad, Barik y tickets. Prueba «estado de Durango».\nLos datos son simulados. Aún no hay cobertura en vivo para todo el territorio.', view: 'search', label: 'Explorar municipios de Bizkaia' };
   }
   function askAssistant(question) {
     const text = question.trim();
@@ -838,8 +898,18 @@
     'close-menu': closeMenu,
     'close-modal': closeModal,
     destination: el => {
-      state.destination = el.dataset.id;
+      selectDestination(el.dataset.id);
       navigate('results');
+    },
+    'clear-catalog-search': () => {
+      catalogQuery = '';
+      render();
+      document.getElementById('catalog-query').focus();
+    },
+    'reference-route': () => {
+      state.origin = 'Getxo';
+      selectDestination('San Mamés');
+      navigate('compare');
     },
     'manual-location': () => {
       state.manualLocation = true;
@@ -961,6 +1031,10 @@
     if (form.id === 'assistant-form') {
       askAssistant(String(data.get('question')));
       form.reset();
+    } else if (form.id === 'catalog-search-form') {
+      catalogQuery = String(data.get('query')).trim();
+      render();
+      document.getElementById('catalog-results-title').focus();
     } else if (form.id === 'barik-form') {
       const result = M.linkBarik(state, { alias: String(data.get('alias')), lastFour: String(data.get('lastFour')), personalized: checked(form, 'personalized'), consent: checked(form, 'consent') });
       if (!result.ok) {
@@ -989,7 +1063,7 @@
       const destination = String(data.get('destination')).trim();
       const origin = form.id === 'location-form' ? String(data.get('origin')).trim() : state.origin;
       if (!destination || !origin) return notify('Escribe un origen y un destino válidos.', true);
-      state.destination = destination;
+      selectDestination(destination);
       state.origin = origin;
       navigate('results');
     } else if (form.id === 'profile-form') {

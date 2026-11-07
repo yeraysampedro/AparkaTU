@@ -2,7 +2,8 @@ const AparkaMaps = (() => {
   'use strict';
 
   const M = AparkaModel;
-  const BILBAO = [43.2652, -2.9413];
+  const BIZKAIA = [43.23, -2.91];
+  const BIZKAIA_BOUNDS = [[42.96, -3.46], [43.47, -2.40]];
   const SAN_MAMES = [43.2642, -2.9494];
   const STYLES = {
     light: 'https://tiles.openfreemap.org/styles/positron',
@@ -129,15 +130,17 @@ const AparkaMaps = (() => {
     content.append(detail);
     return content;
   }
-  function markerIcon(parking, reading) {
-    const label = node('div', `parking-map-pin is-${reading.kind}`);
+  function markerIcon(parking, reading, overview) {
+    const label = node('div', `parking-map-pin is-${reading.kind}${overview ? ' is-overview' : ''}`);
     const count = node('div', 'parking-map-count');
     count.append(node('span', 'parking-map-kind', parking.type === 'pr' ? 'P+R' : 'P'));
     count.append(node('strong', '', reading.available === null ? '?' : String(reading.available)));
     label.append(count, node('span', 'parking-map-status', reading.label));
-    return L.divIcon({ className: 'parking-map-marker', html: label, iconSize: [104, 55], iconAnchor: [52, 55], popupAnchor: [0, -52] });
+    return L.divIcon({ className: 'parking-map-marker', html: label, iconSize: overview ? [16, 16] : [104, 55], iconAnchor: overview ? [8, 8] : [52, 55], popupAnchor: overview ? [0, -8] : [0, -52] });
   }
   function syncMarkers(record) {
+    const overview = record.map.getZoom() < 12;
+    record.wrapper.querySelector('.live-map').classList.toggle('territory-overview', overview);
     const focus = M.PARKINGS.find(p => p.id === record.wrapper.dataset.mapFocus);
     const selected = focus ? [focus] : record.wrapper.dataset.mapParkings === 'true' ? M.results(record.state) : [];
     const included = new Set(selected.map(p => p.id));
@@ -153,21 +156,23 @@ const AparkaMaps = (() => {
       if (!item) {
         const label = `${parking.name}: ${reading.available === null ? 'disponibilidad desconocida' : reading.available + ' plazas orientativas'}. Datos de ejemplo.`;
         const marker = L.marker(parking.coordinates, {
-          icon: markerIcon(parking, reading), keyboard: true, title: label, alt: label,
+          icon: markerIcon(parking, reading, overview), keyboard: true, title: label, alt: label,
           riseOnHover: true, autoPanOnFocus: true
         }).addTo(record.map);
-        marker.bindTooltip(parking.name, { direction: 'top', offset: [0, -54] });
+        marker.bindTooltip(parking.name, { direction: 'top', offset: [0, overview ? -9 : -54] });
         marker.bindPopup(() => popupContent(record, parking), { minWidth: 205, maxWidth: 280 });
         marker.on('popupopen', () => {
           const close = marker.getPopup().getElement().querySelector('.leaflet-popup-close-button');
           if (close) close.setAttribute('aria-label', 'Cerrar detalle');
         });
-        item = { marker, available: reading.available, kind: reading.kind };
+        item = { marker, available: reading.available, kind: reading.kind, overview };
         record.markers.set(parking.id, item);
-      } else if (item.available !== reading.available || item.kind !== reading.kind) {
-        item.marker.setIcon(markerIcon(parking, reading));
+      } else if (item.available !== reading.available || item.kind !== reading.kind || item.overview !== overview) {
+        item.marker.setIcon(markerIcon(parking, reading, overview));
+        item.marker.getTooltip().options.offset = L.point(0, overview ? -9 : -54);
         item.available = reading.available;
         item.kind = reading.kind;
+        item.overview = overview;
       }
       const iconElement = item.marker.getElement();
       if (iconElement) {
@@ -307,20 +312,22 @@ const AparkaMaps = (() => {
         continue;
       }
       const focus = M.PARKINGS.find(p => p.id === wrapper.dataset.mapFocus);
+      const destination = M.municipalityFor(state.destination);
       const cached = views.get(record.key);
-      const initialCenter = focus ? focus.coordinates : state.view === 'event' ? SAN_MAMES : BILBAO;
-      const initialZoom = focus ? 16 : state.view === 'event' ? 15 : 14;
+      const initialCenter = focus ? focus.coordinates : state.view === 'event' ? SAN_MAMES : destination ? destination.coordinates : BIZKAIA;
+      const initialZoom = focus ? 16 : state.view === 'event' ? 15 : destination ? 14 : 9;
       record.pressure = cached ? cached.pressure : true;
       wrapper.querySelector('[data-map-command="pressure"]').checked = record.pressure;
       const container = wrapper.querySelector('.live-map');
       try {
         record.map = L.map(container, {
           center: cached ? cached.center : initialCenter, zoom: cached ? cached.zoom : initialZoom,
-          minZoom: 10, maxZoom: 18, maxBounds: [[43.10, -3.20], [43.47, -2.70]],
+          minZoom: 8, maxZoom: 18, zoomSnap: .25, maxBounds: [[42.85, -3.60], [43.60, -2.25]],
           maxBoundsViscosity: .8, scrollWheelZoom: false, zoomControl: false,
           fadeAnimation: !matchMedia('(prefers-reduced-motion: reduce)').matches,
           zoomAnimation: !matchMedia('(prefers-reduced-motion: reduce)').matches
         });
+        if (!cached && !focus && !destination && state.view !== 'event') record.map.fitBounds(BIZKAIA_BOUNDS, { padding: [20, 20], animate: false });
         L.control.zoom({ position: 'topright', zoomInTitle: 'Acercar el mapa', zoomOutTitle: 'Alejar el mapa' }).addTo(record.map);
         L.control.scale({ imperial: false, position: 'topleft', maxWidth: 80 }).addTo(record.map);
         record.map.attributionControl.setPrefix('<a href="https://leafletjs.com/" target="_blank" rel="noreferrer">Leaflet</a>');
@@ -332,6 +339,7 @@ const AparkaMaps = (() => {
         syncEnvironment(record);
         syncMarkers(record);
         record.map.on('moveend zoomend', () => remember(record));
+        record.map.on('zoomend', () => syncMarkers(record));
         record.base = L.maplibreGL({
           style: { version: 8, sources: {}, layers: [] },
           interactive: false, maxZoom: 18, canvasContextAttributes: { antialias: false },
@@ -347,11 +355,8 @@ const AparkaMaps = (() => {
           const control = event.target.closest('[data-map-command]');
           if (!control || !wrapper.contains(control)) return;
           const command = control.dataset.mapCommand;
-          if (command === 'bilbao') record.map.setView(BILBAO, 14, { animate: false });
-          if (command === 'all') {
-            const points = M.PARKINGS.map(p => p.coordinates).concat([SAN_MAMES]);
-            record.map.fitBounds(points, { padding: [35, 35], maxZoom: 14, animate: false });
-          }
+          if (command === 'destination' && destination) record.map.setView(destination.coordinates, 14, { animate: false });
+          if (command === 'all') record.map.fitBounds(BIZKAIA_BOUNDS, { padding: [20, 20], animate: false });
           if (command === 'focus' && focus) record.map.setView(focus.coordinates, 16, { animate: false });
           if (command === 'retry') loadStyle(record);
         };
@@ -372,7 +377,15 @@ const AparkaMaps = (() => {
         wrapper.addEventListener('change', record.onChange);
         if ('ResizeObserver' in window) {
           record.observer = new ResizeObserver(() => {
-            if (!record.closed && container.clientWidth && container.clientHeight) record.map.invalidateSize({ animate: false, debounceMoveend: true });
+            if (record.closed || !container.clientWidth || !container.clientHeight) return;
+            record.map.invalidateSize({ animate: false, debounceMoveend: true });
+            const size = record.base.getSize();
+            const basemap = record.base.getContainer();
+            if (basemap.style.width !== `${size.x}px` || basemap.style.height !== `${size.y}px`) {
+              basemap.style.width = `${size.x}px`;
+              basemap.style.height = `${size.y}px`;
+              record.gl.resize();
+            }
           });
           record.observer.observe(container);
         }

@@ -7,7 +7,37 @@ const AparkaModel = (() => {
   const TICKET_REWARD = 30;
   const MOBILITY_EQUIVALENCE = Object.freeze({ points: TICKET_REWARD, co2Kg: 1.2, minutes: 16 });
   const FORUM_CATEGORIES = Object.freeze({ share: 'Cesión temporal', question: 'Duda sobre una zona', incident: 'Incidencia' });
-  const FORUM_ZONES = Object.freeze(['Leioa', 'Indautxu', 'Abando', 'San Mamés', 'Casco Viejo']);
+  const CATALOG_SOURCE = Object.freeze({
+    id: 'bilbao-residents', publisher: 'Ayuntamiento de Bilbao', municipality: 'Bilbao',
+    title: 'Aparcamientos Municipales para Residentes',
+    url: 'https://www.bilbao.eus/opendata/es/catalogo/dato-aparcamientos-residentes',
+    downloadUrl: 'https://www.bilbao.eus/cs/Satellite?c=Page&language=es&pageid=1272990695486&pagename=Bilbaonet/Page/OD_aparcamientosResidentes&formato=JSON',
+    license: 'CC BY 3.0 ES', licenseUrl: 'https://creativecommons.org/licenses/by/3.0/es/'
+  });
+  const MUNICIPALITIES = Object.freeze([
+    { id: 'bilbao', name: 'Bilbao', region: 'Bilbo Handia', coordinates: [43.263, -2.935], aliases: ['Bilbo', 'San Mamés', 'Hospital de Basurto', 'Casco Viejo', 'Indautxu', 'Abando'] },
+    { id: 'leioa', name: 'Leioa', region: 'Eskuinaldea', coordinates: [43.327, -2.985] },
+    { id: 'getxo', name: 'Getxo', region: 'Eskuinaldea', coordinates: [43.349, -3.009], aliases: ['Algorta', 'Las Arenas', 'Areeta'] },
+    { id: 'barakaldo', name: 'Barakaldo', region: 'Ezkerraldea', coordinates: [43.297, -2.987], aliases: ['BEC'] },
+    { id: 'portugalete', name: 'Portugalete', region: 'Ezkerraldea', coordinates: [43.320, -3.020] },
+    { id: 'santurtzi', name: 'Santurtzi', region: 'Ezkerraldea', coordinates: [43.329, -3.032], aliases: ['Santurce'] },
+    { id: 'basauri', name: 'Basauri', region: 'Nerbioi-Ibaizabal', coordinates: [43.237, -2.885] },
+    { id: 'galdakao', name: 'Galdakao', region: 'Nerbioi-Ibaizabal', coordinates: [43.230, -2.845] },
+    { id: 'durango', name: 'Durango', region: 'Durangaldea', coordinates: [43.169, -2.632] },
+    { id: 'amorebieta', name: 'Amorebieta-Etxano', region: 'Durangaldea', coordinates: [43.220, -2.734], aliases: ['Amorebieta', 'Zornotza'] },
+    { id: 'gernika', name: 'Gernika-Lumo', region: 'Busturialdea', coordinates: [43.317, -2.678], aliases: ['Gernika', 'Guernica'] },
+    { id: 'bermeo', name: 'Bermeo', region: 'Busturialdea', coordinates: [43.420, -2.724] },
+    { id: 'mungia', name: 'Mungia', region: 'Mungialdea', coordinates: [43.354, -2.846], aliases: ['Munguía'] },
+    { id: 'lekeitio', name: 'Lekeitio', region: 'Lea-Artibai', coordinates: [43.364, -2.503] },
+    { id: 'ondarroa', name: 'Ondarroa', region: 'Lea-Artibai', coordinates: [43.321, -2.420] },
+    { id: 'markina', name: 'Markina-Xemein', region: 'Lea-Artibai', coordinates: [43.267, -2.499], aliases: ['Markina', 'Marquina'] },
+    { id: 'balmaseda', name: 'Balmaseda', region: 'Enkarterri', coordinates: [43.194, -3.193], aliases: ['Valmaseda'] },
+    { id: 'zalla', name: 'Zalla', region: 'Enkarterri', coordinates: [43.213, -3.130] },
+    { id: 'karrantza', name: 'Karrantza Harana / Valle de Carranza', region: 'Enkarterri', coordinates: [43.221, -3.359], aliases: ['Karrantza', 'Carranza'] },
+    { id: 'igorre', name: 'Igorre', region: 'Arratia', coordinates: [43.165, -2.777], aliases: ['Yurre'] },
+    { id: 'orduna', name: 'Orduña / Urduña', region: 'Aiaraldea', coordinates: [42.994, -3.010], aliases: ['Orduña', 'Urduña'] }
+  ].map(municipality => Object.freeze({ ...municipality, coordinates: Object.freeze(municipality.coordinates), aliases: Object.freeze(municipality.aliases || []) })));
+  const FORUM_ZONES = Object.freeze([...MUNICIPALITIES.map(municipality => municipality.name), 'Indautxu', 'Abando', 'San Mamés', 'Casco Viejo']);
   const ENVIRONMENT = Object.freeze({
     refuges: [
       { id: 'casilda', name: 'Parque de Doña Casilda', coordinates: [43.2654, -2.9436], detail: 'Arbolado y zonas de descanso de referencia. No se confirma sombra, apertura ni disponibilidad de agua.' },
@@ -29,11 +59,65 @@ const AparkaModel = (() => {
     resident: false, vehicle: 'ECO', maxWalk: 300, alerts: true,
     vision: 'standard', font: 'inter', spacing: 'normal', simple: false, theme: 'light'
   });
-  const PARKINGS = Object.freeze([
+  const LOCAL_PARKINGS = [
     Object.freeze({ id: 'leioa', name: 'P+R Leioa', type: 'pr', coordinates: Object.freeze([43.318056, -2.991944]), mapReference: 'Entorno de la estación de Leioa · ubicación aproximada del ejemplo', spaces: 42, pmr: 2, stepFree: true, walk: 260, residentOnly: false, vehicles: ['B', 'C', 'ECO', '0'], age: 42, margin: 7, source: 'Sensor LEI-ACC-01', connection: 'Metro L1 · conexión a San Mamés', sensor: Object.freeze({ id: 'LEI-ACC-01', location: 'P+R Leioa · acceso principal · carril de entrada 1 · barrera A', device: 'Contador de entradas y salidas', coverage: 'Ocupación agregada del aparcamiento; no confirma una plaza concreta.' }) }),
     Object.freeze({ id: 'indautxu', name: 'Indautxu', type: 'parking', coordinates: Object.freeze([43.260861, -2.940236]), mapReference: 'Entorno de la estación de Indautxu · ubicación aproximada del ejemplo', spaces: 0, pmr: 1, stepFree: true, walk: 180, residentOnly: false, vehicles: ['C', 'ECO', '0'], age: 20, margin: 4, source: 'Sensor IND-P1-03', connection: 'Tramo a pie sin escalones · ejemplo', sensor: Object.freeze({ id: 'IND-P1-03', location: 'Parking Indautxu · planta −1 · sector B · acceso a fila 3', device: 'Contador de ocupación por sector', coverage: 'Ocupación del sector B; datos agregados de plazas.' }) }),
     Object.freeze({ id: 'abando', name: 'Abando · OTA', type: 'ota', coordinates: Object.freeze([43.26139, -2.92944]), mapReference: 'Zona de Abando · ubicación aproximada del ejemplo', spaces: 12, pmr: 1, stepFree: true, walk: 90, residentOnly: true, vehicles: ['C', 'ECO', '0'], age: 1130, margin: 5, source: 'Sensor ABA-OTA-07', connection: 'Zona residente · condiciones simuladas', sensor: Object.freeze({ id: 'ABA-OTA-07', location: 'Abando · zona OTA de referencia · tramo 2 · poste de lectura 07', device: 'Nodo de sensores de plazas reguladas', coverage: 'Agregado del tramo 2. La lectura actual ha caducado.' }) })
+  ];
+  const PARKINGS = Object.freeze([
+    ...LOCAL_PARKINGS.map(parking => Object.freeze({ ...parking, municipality: parking.id === 'leioa' ? 'leioa' : 'bilbao' })),
+    ...MUNICIPALITIES.filter(municipality => !['bilbao', 'leioa'].includes(municipality.id)).map((municipality, index) => {
+      const sensorId = `DEMO-${municipality.id.toUpperCase()}-01`;
+      return Object.freeze({
+        id: municipality.id, municipality: municipality.id, name: `${municipality.name} · zona de ejemplo`, type: 'parking',
+        coordinates: municipality.coordinates, mapReference: `${municipality.name} · referencia municipal, no ubicación de un parking real`,
+        spaces: [18, 26, 0, 34, 12][index % 5], pmr: 2, stepFree: true, walk: 240, residentOnly: false,
+        vehicles: Object.freeze(['B', 'C', 'ECO', '0']), age: 45 + index * 3, margin: 5, source: `Sensor ${sensorId}`,
+        connection: `${municipality.region} · conexiones de transporte por confirmar`,
+        sensor: Object.freeze({ id: sensorId, location: `${municipality.name} · sector de demostración, sin instalación real`, device: 'Contador simulado de ocupación', coverage: 'Datos ficticios de una zona municipal; no confirma plazas ni accesos reales.' })
+      });
+    })
   ]);
+  function normalizePlace(value) {
+    return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+  function parseOfficialParkings(payload) {
+    if (!payload || !Array.isArray(payload.aparcamientos) || !payload.aparcamientos.length) throw new TypeError('El catálogo oficial no contiene aparcamientos.');
+    const records = payload.aparcamientos.filter(item => item && typeof item.nombre === 'string' && item.nombre.trim() && typeof item.direccion === 'string' && item.direccion.trim()).map(item => {
+      const pmr = normalizePlace(item.plazasMovilidadReducida);
+      const capacity = typeof item.totalPlazasResidentes === 'number' ? item.totalPlazasResidentes : /^\d+$/.test(item.totalPlazasResidentes) ? Number(item.totalPlazasResidentes) : null;
+      return Object.freeze({
+        id: `${CATALOG_SOURCE.id}:${normalizePlace(item.nombre)}:${normalizePlace(item.direccion)}`,
+        sourceId: CATALOG_SOURCE.id, name: item.nombre.trim(), address: item.direccion.trim(),
+        municipality: CATALOG_SOURCE.municipality, district: typeof item.distrito === 'string' ? item.distrito.trim() : '',
+        neighborhood: typeof item.barrio === 'string' ? item.barrio.trim() : '', residentOnly: true,
+        capacity: Number.isSafeInteger(capacity) && capacity >= 0 ? capacity : null,
+        pmr: pmr === 'si' ? true : pmr === 'no' ? false : null,
+        available: null, coordinates: null, stepFree: null, updatedAt: null
+      });
+    });
+    if (!records.length) throw new TypeError('El catálogo oficial no contiene registros con nombre y dirección.');
+    if (new Set(records.map(record => record.id)).size !== records.length) throw new TypeError('El catálogo oficial contiene aparcamientos duplicados.');
+    return records;
+  }
+  function officialCatalogResults(records, query = '') {
+    const words = normalizePlace(query).split(' ').filter(Boolean);
+    return records.filter(record => {
+      const text = normalizePlace(`${record.name} ${record.address} ${record.municipality} ${record.district} ${record.neighborhood}`);
+      return words.every(word => text.includes(word));
+    }).sort((first, second) => first.name.localeCompare(second.name, 'es'));
+  }
+  function municipalityFor(destination) {
+    const query = normalizePlace(destination);
+    if (!query || query === 'bizkaia' || query === 'vizcaya') return null;
+    return MUNICIPALITIES.find(municipality => [municipality.name, ...municipality.aliases].some(name => ` ${query} `.includes(` ${normalizePlace(name)} `))) || null;
+  }
+  function isTerritory(destination) {
+    return ['bizkaia', 'vizcaya'].includes(normalizePlace(destination));
+  }
+  function referenceJourney(state) {
+    return normalizePlace(state.origin) === 'getxo' && normalizePlace(state.destination) === 'san mames';
+  }
   const fail = (code, message) => ({ ok: false, code, message });
   function formatTime(value) {
     return CLOCK_FORMAT.format(value);
@@ -46,7 +130,7 @@ const AparkaModel = (() => {
     return {
       preferences: { ...DEFAULTS, ...preferences }, view: 'welcome', history: [],
       now: DEMO_START, readingBase: DEMO_START, dataMode: 'fresh',
-      origin: 'Getxo', destination: 'San Mamés', departure: '17:43',
+      origin: 'Getxo', destination: 'Bizkaia', departure: '17:43',
       selectedParking: 'leioa', selectedMode: 'metro', manualLocation: false,
       moving: false, muted: false, points: 110, reports: [], lastReportId: null,
       completedModes: [], redemptionPending: false, redemptions: 0, storageWarning: '',
@@ -96,7 +180,9 @@ const AparkaModel = (() => {
       && parking.walk <= preferences.maxWalk;
   }
   function results(state) {
-    return PARKINGS.filter(p => compatible(p, state.preferences)).sort((a, b) => {
+    const municipality = municipalityFor(state.destination);
+    if (!municipality && !isTerritory(state.destination)) return [];
+    return PARKINGS.filter(parking => (!municipality || parking.municipality === municipality.id) && compatible(parking, state.preferences)).sort((a, b) => {
       if (state.preferences.preferPr && (a.type === 'pr') !== (b.type === 'pr')) return a.type === 'pr' ? -1 : 1;
       return a.walk - b.walk;
     });
@@ -117,6 +203,7 @@ const AparkaModel = (() => {
     return { mode, steps, duration, arrival, uncertainty: mode === 'car' ? 9 : mode === 'metro' ? 4 : 5 };
   }
   function journeyOptions(state) {
+    if (!referenceJourney(state)) return [];
     return ['metro', 'bike', 'car'].map(mode => journey(mode, state.departure)).sort((a, b) => a.duration - b.duration);
   }
   function personalImpact(state) {
@@ -252,5 +339,5 @@ const AparkaModel = (() => {
       && ['normal', 'wide'].includes(value.spacing)
       && (!Object.hasOwn(value, 'theme') || ['light', 'dark'].includes(value.theme));
   }
-  return Object.freeze({ DEMO_START, MAX_AGE_MS, MAX_TICKET_BYTES, TICKET_IMAGE_TYPES, TICKET_REWARD, MOBILITY_EQUIVALENCE, FORUM_CATEGORIES, FORUM_ZONES, ENVIRONMENT, DEFAULTS, PARKINGS, formatTime, formatAge, createState, reading, airReading, parkingStatus, changeDataMode, compatible, results, journey, journeyOptions, personalImpact, submitReport, validateReport, addForumThread, replyForumThread, closeForumThread, completeJourney, linkBarik, unlinkBarik, submitTicket, validateTicket, prepareRedemption, redeem, validPreferences });
+  return Object.freeze({ DEMO_START, MAX_AGE_MS, MAX_TICKET_BYTES, TICKET_IMAGE_TYPES, TICKET_REWARD, MOBILITY_EQUIVALENCE, FORUM_CATEGORIES, FORUM_ZONES, ENVIRONMENT, DEFAULTS, MUNICIPALITIES, PARKINGS, CATALOG_SOURCE, parseOfficialParkings, officialCatalogResults, municipalityFor, isTerritory, referenceJourney, formatTime, formatAge, createState, reading, airReading, parkingStatus, changeDataMode, compatible, results, journey, journeyOptions, personalImpact, submitReport, validateReport, addForumThread, replyForumThread, closeForumThread, completeJourney, linkBarik, unlinkBarik, submitTicket, validateTicket, prepareRedemption, redeem, validPreferences });
 })();

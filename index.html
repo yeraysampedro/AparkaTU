@@ -12,6 +12,7 @@
   <script src="assets/maps/leaflet/leaflet.js" defer></script>
   <script src="assets/maps/maplibre/maplibre-gl.js" defer></script>
   <script src="assets/maps/adapter/leaflet-maplibre-gl.js" defer></script>
+  <script src="assets/data/parking-catalog.js" defer></script>
   <script src="model.js" defer></script>
   <script src="maps.js" defer></script>
   <script src="app.js" defer></script>
@@ -49,7 +50,7 @@
   <dialog id="modal" aria-labelledby="modal-title"></dialog>
   <section id="assistant-panel" class="assistant-panel" aria-labelledby="assistant-title" hidden>
     <header class="assistant-header">
-      <div><h2 id="assistant-title">GaldeTU · Tu asistente</h2><p>Respuestas locales con datos de ejemplo</p></div>
+      <div><h2 id="assistant-title">GaldeTU · Tu asistente</h2><p>Fuentes oficiales y ejemplos identificados</p></div>
       <button class="icon-button" data-action="close-assistant" aria-label="Cerrar asistente">×</button>
     </header>
     <div id="assistant-log" class="assistant-log" role="log" aria-live="polite" aria-label="Conversación con el asistente"></div>
@@ -64,7 +65,7 @@
       <input id="assistant-input" name="question" maxlength="400" required autocomplete="off" placeholder="¿En qué puedo ayudarte?">
       <button class="button small" type="submit">Enviar</button>
     </form>
-    <p class="assistant-disclaimer">Respuestas guiadas con datos de ejemplo. No guardamos la conversación.</p>
+    <p class="assistant-disclaimer">Respuestas guiadas; no confirman plazas libres. No guardamos la conversación.</p>
   </section>
   <button id="assistant-toggle" class="assistant-toggle" data-action="toggle-assistant" aria-expanded="false" aria-controls="assistant-panel" aria-label="Abrir GaldeTU, asistente de movilidad"></button>
   <noscript><div class="noscript">Activa JavaScript para consultar el mapa, comparar rutas y utilizar los filtros de AparkaTu.</div></noscript>

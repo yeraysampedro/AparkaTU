@@ -8,14 +8,16 @@
   <title>AparkaTu · Tu plan está en Bizkaia</title>
   <link rel="stylesheet" href="assets/maps/leaflet/leaflet.css">
   <link rel="stylesheet" href="assets/maps/maplibre/maplibre-gl.css">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20261107-eu">
   <script src="assets/maps/leaflet/leaflet.js" defer></script>
   <script src="assets/maps/maplibre/maplibre-gl.js" defer></script>
   <script src="assets/maps/adapter/leaflet-maplibre-gl.js" defer></script>
   <script src="assets/data/parking-catalog.js" defer></script>
+  <script src="locales/eu.js?v=20261107-eu" defer></script>
+  <script src="i18n.js?v=20261107-eu" defer></script>
   <script src="model.js" defer></script>
   <script src="maps.js" defer></script>
-  <script src="app.js?v=20261107-textos" defer></script>
+  <script src="app.js?v=20261107-eu" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Saltar al contenido</a>
@@ -35,6 +37,7 @@
       <button id="menu-button" class="icon-button mobile-menu" data-action="menu" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar"></button>
       <div class="breadcrumb"><span>Bizkaia</span><span class="breadcrumb-divider">/</span><strong id="breadcrumb-current">AurkiTU</strong></div>
       <div class="topbar-actions">
+        <label class="language-picker"><span class="sr-only">Idioma</span><select id="language-select" aria-label="Idioma"><option value="es" lang="es" translate="no">Castellano</option><option value="eu" lang="eu" translate="no">Euskara</option></select></label>
         <span class="demo-label"><span class="status-dot"></span> Datos de ejemplo</span>
         <button id="points-button" class="points-button" data-action="go" data-view="rewards" aria-label="SariTU: 110 puntos. Ver saldo y recompensas"><span class="points-module">SariTU</span><span id="header-points" aria-live="polite" aria-atomic="true">110 PTS</span></button>
         <button id="theme-button" class="icon-button" data-action="toggle-theme" aria-label="Activar modo nocturno" aria-pressed="false" title="Activar modo nocturno"></button>
@@ -55,7 +58,7 @@
     </header>
     <div id="assistant-log" class="assistant-log" role="log" aria-live="polite" aria-label="Conversación con el asistente"></div>
     <div class="assistant-suggestions">
-      <button data-action="ask-assistant" data-id="eventos">Eventos cercanos</button>
+      <button data-action="ask-assistant" data-id="eventos">Avisos de movilidad</button>
       <button data-action="ask-assistant" data-id="zonas">Estado de zonas</button>
       <button data-action="ask-assistant" data-id="barik">Barik y tickets</button>
       <button data-action="ask-assistant" data-id="guia">Cómo empezar</button>

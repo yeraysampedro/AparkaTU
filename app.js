@@ -73,7 +73,7 @@
     parking: ['Detalle del aparcamiento', renderParking], profile: ['Mi perfil', renderProfile],
     compare: ['GidaTU', renderCompare], route: ['GidaTU · Mi ruta', renderRoute], drive: ['GidaTU · En camino', renderDrive],
     arrival: ['Has llegado', renderArrival], alerts: ['AurreraTU', renderAlerts], event: ['AurreraTU · Evento', renderEvent],
-    heat: ['AurreraTU · Calor', renderHeat], report: ['PartekaTU', renderReport], pending: ['Reporte recibido', renderPending],
+    heat: ['BateraTU · Entorno', renderHeat], incident: ['AurreraTU · Detalle del aviso', renderIncident], report: ['PartekaTU', renderReport], pending: ['Reporte recibido', renderPending],
     validated: ['Reporte validado', renderValidated], rewards: ['SariTU', renderRewards], redeemed: ['SariTU · Canje completado', renderRedeemed],
     settings: ['Accesibilidad', renderSettings], reading: ['Lectura accesible', renderReading], privacy: ['Privacidad', renderPrivacy],
     connection: ['Estado de la información', renderConnection], location: ['Ubicación opcional', renderLocation],
@@ -88,8 +88,8 @@
     return `<button type="button" class="button ${kind} ${full ? 'full' : ''} ${small ? 'small' : ''}" data-action="${e(action)}"${view ? ` data-view="${e(view)}"` : ''}${id ? ` data-id="${e(id)}"` : ''}${disabled ? ' disabled' : ''}>${glyph ? icon(glyph) : ''}${e(label)}</button>`;
   }
   const goButton = (label, view, options = {}) => button(label, 'go', { ...options, view });
-  function heading(title, subtitle, actions = '', eyebrow = '') {
-    return `<div class="page-heading"><div>${eyebrow ? `<p class="eyebrow green module-name" style="margin-bottom:9px">${e(eyebrow)}</p>` : ''}<h1>${e(title)}</h1><p class="optional-detail">${e(subtitle)}</p></div>${actions ? `<div class="heading-actions">${actions}</div>` : ''}</div>`;
+  function heading(title, subtitle, actions = '', eyebrow = '', userTitle = false) {
+    return `<div class="page-heading"><div>${eyebrow ? `<p class="eyebrow green module-name" style="margin-bottom:9px">${e(eyebrow)}</p>` : ''}<h1${userTitle ? ' translate="no"' : ''}>${e(title)}</h1><p class="optional-detail">${e(subtitle)}</p></div>${actions ? `<div class="heading-actions">${actions}</div>` : ''}</div>`;
   }
   const back = (view = 'map', label = 'Volver') => `<button class="back-link" data-action="go" data-view="${e(view)}">${icon('back')}${e(label)}</button>`;
   function card(tone, label, title, text, foot = '', action = '') {
@@ -190,7 +190,7 @@
       + `<div class="map-layout"><div class="stack"><section class="panel map-panel"><div class="map-filters"><div class="chips"><button class="chip active" data-action="refresh">${icon('clock')} Ahora</button><button class="chip${state.preferences.pmr ? ' active' : ''}" data-action="filters">${icon('access')} PMR</button><button class="chip${state.preferences.preferPr ? ' active' : ''}" data-action="filters">P+R</button><button class="chip" data-action="filters">${icon('sliders')} Filtros</button></div><span class="time-pill">${icon('clock')}<span data-clock>${time(state.now).slice(0, 5)}</span> · ejemplo</span></div>${mapMarkup()}${mapLegend()}</section>
         <div class="section-title" style="margin-top:7px"><h2>Opciones en ${e(M.municipalityFor(state.destination)?.name || state.destination)}</h2><button class="mini-link" data-action="go" data-view="results" style="margin:0">Ver todas ${icon('arrow')}</button></div><div class="parking-list">${all.length ? all.slice(0, 3).map(p => parkingRow(p)).join('') : emptyResults()}</div></div>
         <aside class="stack map-side">${routeRecommendation()}
-        ${M.isTerritory(state.destination) || M.municipalityFor(state.destination)?.id === 'bilbao' ? `<section class="card warning preventive-alert"><div class="card-icon"><span class="eyebrow module-name">AurreraTU · Bilbao · Ejemplo</span>${icon('bell')}</div><h3>Evento en San Mamés.</h3><p>Presión alta simulada de 18:00 a 19:00. Considera un P+R antes de entrar en la zona.</p><button class="mini-link" data-action="go" data-view="event">Ver alternativas ${icon('arrow')}</button></section>` : card('unknown', 'AurreraTU · Avisos', 'Sin avisos verificados para este municipio.', 'No hay una agenda conectada para esta zona. La ausencia de avisos no confirma que no existan incidencias.')}
+        ${mobilityAlertPreview()}
         <section class="panel panel-pad quick-community"><div class="eyebrow green module-name">PartekaTU</div><h3>Red Colaborativa</h3>${reportForm(true)}${goButton('Abrir el foro vecinal', 'forum', { kind: 'quiet', full: true, glyph: 'chat' })}</section></aside></div>`;
   }
   function renderSearch() {
@@ -279,17 +279,37 @@
   function renderArrival() {
     return `<div class="narrow"><section class="panel empty-state"><div class="success-symbol">${icon('check')}</div><div class="eyebrow green">RECORRIDO COMPLETADO</div><h1 style="margin-top:15px">Ya estás donde querías.</h1><p>Gracias por elegir cómo moverte con más calma. Finalizar un recorrido no acredita su uso ni suma puntos automáticamente.</p>${state.selectedMode === 'metro' ? `<p>Para sumar 30 puntos de ejemplo, vincula tu Barik personalizada y presenta la fotografía del ticket del parking disuasorio.</p>` : ''}<div class="row">${state.selectedMode === 'metro' ? goButton('Acreditar P+R + Metro', state.barik ? 'ticket' : 'barik', { kind: 'green', glyph: 'upload' }) : goButton('Ver mi movilidad', 'rewards', { kind: 'green', glyph: 'leaf' })}${goButton('Volver a explorar', 'map', { kind: 'secondary' })}</div><p class="footnote" style="margin-top:22px">No se ha registrado ni validado un trayecto real.</p></section></div>`;
   }
+  function mobilityAlertCard(alert) {
+    const municipality = M.MUNICIPALITIES.find(place => place.id === alert.municipality);
+    return `<article class="card ${alert.severity} mobility-alert" data-alert-category="${alert.category}"><div class="card-icon"><span class="eyebrow">${e(M.ALERT_CATEGORIES[alert.category])} · Ejemplo</span>${icon({ event: 'bell', congestion: 'car', accident: 'shield', works: 'settings', transit: 'train', access: 'access' }[alert.category])}</div><h3>${e(alert.title)}</h3><p>${e(alert.situation)}</p><span class="meta">${e(municipality.name)} · ${e(alert.period)} · No vigente</span>${button('Ver detalle del aviso', 'open-alert', { id: alert.id, kind: 'secondary', full: true, glyph: 'arrow' })}</article>`;
+  }
+  function mobilityAlertPreview() {
+    const municipality = M.municipalityFor(state.destination);
+    const alerts = M.isTerritory(state.destination) ? M.mobilityAlerts() : municipality ? M.mobilityAlerts('all', municipality.id) : [];
+    if (!state.preferences.alerts) return card('unknown', 'AurreraTU · Avisos', 'Los avisos preventivos están desactivados.', 'Puedes consultar los avisos manualmente.', '', goButton('Consultar avisos de movilidad', 'alerts', { kind: 'secondary', full: true, glyph: 'bell' }));
+    return alerts.length ? mobilityAlertCard(alerts[0]) : card('unknown', 'AurreraTU · Avisos', 'Sin avisos verificados para este municipio.', 'La ausencia de datos no confirma que no existan eventos, atascos o incidencias.', '', goButton('Consultar avisos de movilidad', 'alerts', { kind: 'secondary', full: true, glyph: 'bell' }));
+  }
   function renderAlerts() {
-    return heading('Avisos antes de llegar.', 'Eventos y calor que pueden afectar a tu trayecto.', goButton('Preferencias de avisos', 'settings', { kind: 'secondary', glyph: 'sliders' }), 'AurreraTU · Anticipar')
-      + (!state.preferences.alerts ? `<div style="margin-bottom:20px">${banner('Los avisos preventivos están desactivados.', 'Puedes consultar manualmente los avisos de ejemplo de esta página.', 'bell', 'neutral')}</div>` : '')
-      + `<div class="two-col">${card('danger', 'EVENTO · PRESIÓN ALTA', 'San Mamés: decide antes de llegar.', 'Se esperan más llegadas entre 18:00 y 19:00. Aparcar fuera del núcleo y continuar en Metro puede ahorrarte tiempo.', 'Fuente: agenda de ejemplo · previsión con confianza media', goButton('Ver alternativas por evento', 'event', { kind: 'secondary', full: true, glyph: 'arrow' }))}${card('warning', 'CLIMA · CALOR EXTREMO', 'Una ruta con menos exposición.', '38 °C en el escenario de ejemplo. Prioriza sombra, paradas cubiertas y recorridos cortos a pie.', 'Fuente: clima de ejemplo · no es un aviso meteorológico vigente', goButton('Ver recomendaciones por calor', 'heat', { kind: 'secondary', full: true, glyph: 'arrow' }))}</div><div style="margin-top:24px">${banner('Avisos locales, sin seguir tus pasos.', 'El concepto procesa las alertas en el dispositivo. Esta versión no solicita permisos de ubicación ni utiliza notificaciones externas.', 'shield', 'neutral')}</div>`;
+    const alerts = M.mobilityAlerts(state.alertCategory, state.alertMunicipality);
+    const municipalities = M.MUNICIPALITIES;
+    return heading('Lo que puede cambiar tu trayecto.', 'Eventos, atascos, accidentes, obras y cambios de transporte en Bizkaia.', goButton('Preferencias de avisos', 'settings', { kind: 'secondary', glyph: 'sliders' }), 'AurreraTU · Anticipar')
+      + `<div class="alert-notice">${banner('Escenarios de ejemplo, no avisos vigentes.', 'No hay una fuente de tráfico en directo conectada. Confirma la situación con los servicios de tráfico, el ayuntamiento o el operador antes de salir.', 'info', 'neutral')}</div>`
+      + (!state.preferences.alerts ? `<div class="alert-notice">${banner('Los avisos preventivos están desactivados.', 'Puedes consultar manualmente los avisos de ejemplo de esta página.', 'bell', 'neutral')}</div>` : '')
+      + `<form id="alert-filters-form" class="alert-filters">${selectField('alert-category', 'Tipo de aviso', [['all', 'Todos los avisos'], ...Object.entries(M.ALERT_CATEGORIES)], state.alertCategory)}${selectField('alert-municipality', 'Municipio', [['all', 'Toda Bizkaia'], ...municipalities.map(place => [place.id, place.name])], state.alertMunicipality)}</form><p class="footnote alert-count" role="status">${alerts.length} avisos de ejemplo</p>`
+      + (alerts.length ? `<div class="two-col">${alerts.map(mobilityAlertCard).join('')}</div>` : `<section class="empty-state"><h2>No hay avisos para estos filtros.</h2><p>No significa que la zona esté libre de incidencias. La cobertura de esta muestra es limitada.</p>${button('Quitar filtros', 'clear-alert-filters', { kind: 'secondary', glyph: 'sliders' })}</section>`);
+  }
+  function renderIncident() {
+    const alert = M.MOBILITY_ALERTS.find(item => item.id === state.selectedAlertId) || M.MOBILITY_ALERTS[0];
+    const municipality = M.MUNICIPALITIES.find(place => place.id === alert.municipality);
+    return back('alerts', 'Todos los avisos') + heading(alert.title, `${municipality.name} · ${M.ALERT_CATEGORIES[alert.category]}`, '', 'AurreraTU · Detalle del aviso')
+      + `<div class="alert-notice">${banner('Ejemplo simulado. No es una incidencia vigente.', 'No uses este aviso como información de tráfico en tiempo real.', 'info', 'neutral')}</div><div class="two-col"><section class="panel panel-pad"><h2>Qué ocurre</h2><p>${e(alert.situation)}</p><dl class="sensor-details"><dt>Zona</dt><dd>${e(alert.place)}</dd><dt>Franja del ejemplo</dt><dd>${e(alert.period)}</dd><dt>Fuente</dt><dd>Escenario local de demostración</dd><dt>Estado</dt><dd>No verificado en tiempo real</dd></dl></section><section class="panel panel-pad"><h2>Antes de salir</h2><p>${e(alert.advice)}</p>${button('Consultar aparcamiento en el municipio', 'alert-destination', { id: alert.id, kind: 'secondary', full: true, glyph: 'map' })}${goButton('Revisar mis necesidades de acceso', 'profile', { kind: 'quiet', full: true, glyph: 'access' })}</section></div>`;
   }
   function renderEvent() {
     return back('alerts', 'Todos los avisos') + heading('San Mamés, con un poco más de calma.', 'Aviso preventivo por evento · decide antes de entrar en Bilbao.')
       + `<div class="split"><div class="stack">${card('danger', 'ENTRE LAS 18:00 Y LAS 19:00', 'Se prevé presión alta en el entorno.', 'Las llegadas concentradas pueden aumentar el tiempo de búsqueda. La predicción orienta; no garantiza lo que ocurrirá.', 'Agenda de ejemplo · confianza predictiva media')}<section class="panel map-panel">${mapMarkup(false)}${mapLegend()}</section></div><div class="stack">${card('positive', 'ALTERNATIVA RECOMENDADA', 'P+R Leioa + Metro', 'Aparca fuera de la zona de presión y termina el recorrido en transporte público.', '31 min orientativos · 16 min menos que solo coche', button('Elegir P+R + Metro', 'select-route', { id: 'metro', kind: 'green', full: true, glyph: 'train' }))}${card('', 'OTRA FRANJA', 'Salir a las 19:15.', 'En el escenario de ejemplo, disminuye la búsqueda de aparcamiento. Puedes comparar la nueva hora.', 'Menor presión prevista, no disponibilidad garantizada', button('Comparar salida a las 19:15', 'later-departure', { kind: 'secondary', full: true, glyph: 'clock' }))}${goButton('Ver todas las alternativas', 'compare', { kind: 'secondary', full: true })}</div></div>`;
   }
   function renderHeat() {
-    return back('alerts', 'Todos los avisos') + heading('Muévete sin pasar tanto calor.', 'Menos exposición. Más sombra. Una alternativa cuando la necesitas.')
+    return back('map', 'Volver al mapa') + heading('Muévete sin pasar tanto calor.', 'Menos exposición. Más sombra. Una alternativa cuando la necesitas.')
       + `<div class="split"><div class="stack"><div class="metrics two">${metric('38 °C', 'Temperatura de ejemplo', 'Escenario de calor extremo', 'heat')}${metric('31 min', 'Con P+R + Metro', 'Menos trayecto expuesto', 'train')}</div>${card('warning', 'CUIDAR TAMBIÉN ES MOVILIDAD', 'Busca el recorrido más fresco.', 'Las olas de calor afectan especialmente a personas mayores y otros perfiles vulnerables. Evita la exposición prolongada y consulta avisos oficiales.', 'Las temperaturas de esta web son simuladas')}<section class="panel panel-pad"><h3>Una pausa a la sombra</h3><p class="muted small">Parque de Doña Casilda · oasis térmico de referencia</p><div class="row"><span class="chip active">${icon('leaf')} Infraestructura verde</span><span class="chip">${icon('access')} Revisar accesos</span></div><p class="footnote" style="margin-top:15px">No se confirma en tiempo real el estado de fuentes, sombra o instalaciones.</p></section></div><div class="stack">${option('Priorizar Metro', 'Menos exposición durante el desplazamiento.', 'train', 'go', 'compare')}${option('Revisar mi ruta a pie', 'Mantén el recorrido dentro de tus preferencias.', 'access', 'go', 'profile')}${option('Reconsiderar la bici', 'Compara alternativas durante el pico térmico.', 'bike', 'go', 'compare')}${goButton('Elegir una alternativa más fresca', 'compare', { kind: 'green', full: true, glyph: 'arrow' })}</div></div>`;
   }
   function reportForm(compact = false) {
@@ -319,8 +339,8 @@
     if (!threads.length) return '<section class="panel panel-pad"><p class="muted">Todavía no hay temas en esta categoría durante esta visita.</p></section>';
     return [...threads].reverse().map(thread => `<article class="panel panel-pad forum-card">
       <div class="row"><span class="chip${thread.category === 'share' ? ' active' : ''}">${e(M.FORUM_CATEGORIES[thread.category])}</span><span class="small muted">${e(thread.zone)}</span>${thread.closed ? '<span class="chip gray">Cerrado</span>' : ''}</div>
-      <h2><button class="thread-title" data-action="forum-thread" data-id="${thread.id}">${e(thread.title)}</button></h2>
-      <p>${e(thread.message)}</p>${thread.availability ? `<p class="forum-availability">${icon('clock')} ${e(thread.availability)}</p>` : ''}
+      <h2><button class="thread-title" data-action="forum-thread" data-id="${thread.id}"${thread.own ? ' translate="no"' : ''}>${e(thread.title)}</button></h2>
+      <p${thread.own ? ' translate="no"' : ''}>${e(thread.message)}</p>${thread.availability ? `<p class="forum-availability"${thread.own ? ' translate="no"' : ''}>${icon('clock')} ${e(thread.availability)}</p>` : ''}
       <div class="forum-card-footer"><span>${thread.own ? 'Tu publicación local' : 'Publicación de ejemplo'} · ${thread.replies.length} respuesta${thread.replies.length === 1 ? '' : 's'}</span>${button(thread.category === 'share' ? 'Consultar la cesión' : 'Ver conversación', 'forum-thread', { id: thread.id, kind: 'secondary', small: true })}</div>
     </article>`).join('');
   }
@@ -342,9 +362,9 @@
   function renderThread() {
     const thread = state.forumThreads.find(item => item.id === state.selectedThreadId);
     if (!thread) return renderForum();
-    return back('forum', 'Volver al foro') + heading(thread.title, `${M.FORUM_CATEGORIES[thread.category]} · ${thread.zone}`, thread.own && !thread.closed ? button('Cerrar publicación', 'close-thread', { id: thread.id, kind: 'secondary' }) : '', 'PartekaTU · Conversación')
-      + `<div class="wide-narrow stack"><article class="panel panel-pad forum-message"><div class="row"><span class="chip">${thread.own ? 'Tu publicación local' : 'Ejemplo de la comunidad'}</span>${thread.closed ? '<span class="chip gray">Cerrado</span>' : ''}</div><p>${e(thread.message)}</p>${thread.availability ? `<p class="forum-availability">${icon('clock')} ${e(thread.availability)}</p>` : ''}<p class="footnote">No constituye una reserva, un pago ni una cesión real de una plaza.</p></article>
-        <section class="panel panel-pad"><h2>Respuestas (${thread.replies.length})</h2><div class="forum-replies">${thread.replies.length ? thread.replies.map(reply => `<article class="forum-reply"><strong>${reply.own ? 'Tu respuesta local' : 'Respuesta de ejemplo'}</strong><span>${time(reply.createdAt)}</span><p>${e(reply.text)}</p></article>`).join('') : '<p class="small muted">Todavía no hay respuestas.</p>'}</div>
+    return back('forum', 'Volver al foro') + heading(thread.title, `${M.FORUM_CATEGORIES[thread.category]} · ${thread.zone}`, thread.own && !thread.closed ? button('Cerrar publicación', 'close-thread', { id: thread.id, kind: 'secondary' }) : '', 'PartekaTU · Conversación', thread.own)
+      + `<div class="wide-narrow stack"><article class="panel panel-pad forum-message"><div class="row"><span class="chip">${thread.own ? 'Tu publicación local' : 'Ejemplo de la comunidad'}</span>${thread.closed ? '<span class="chip gray">Cerrado</span>' : ''}</div><p${thread.own ? ' translate="no"' : ''}>${e(thread.message)}</p>${thread.availability ? `<p class="forum-availability"${thread.own ? ' translate="no"' : ''}>${icon('clock')} ${e(thread.availability)}</p>` : ''}<p class="footnote">No constituye una reserva, un pago ni una cesión real de una plaza.</p></article>
+        <section class="panel panel-pad"><h2>Respuestas (${thread.replies.length})</h2><div class="forum-replies">${thread.replies.length ? thread.replies.map(reply => `<article class="forum-reply"><strong>${reply.own ? 'Tu respuesta local' : 'Respuesta de ejemplo'}</strong><span>${time(reply.createdAt)}</span><p${reply.own ? ' translate="no"' : ''}>${e(reply.text)}</p></article>`).join('') : '<p class="small muted">Todavía no hay respuestas.</p>'}</div>
         ${thread.closed ? banner('La publicación está cerrada.', 'Ya no admite nuevas respuestas.', 'info', 'neutral') : `<form id="forum-reply-form" class="form-stack"><label class="field">${thread.category === 'share' ? 'Consultar la cesión o responder' : 'Tu respuesta'}<textarea name="message" minlength="3" maxlength="600" required placeholder="Escribe sin datos personales."></textarea></label>${toggle('stopped', 'Estoy parado.', 'La respuesta solo se conserva durante esta visita.', false)}<p data-form-error class="inline-message" role="alert" hidden></p><button class="button contrast" type="submit">Añadir respuesta local</button></form>`}</section></div>`;
   }
   function currentReport() { return state.reports.find(r => r.id === state.lastReportId); }
@@ -368,16 +388,16 @@
       + `<div class="split"><div class="stack"><section class="balance-card">${icon('leaf')}<div class="eyebrow">PUNTOS DE MOVILIDAD SOSTENIBLE</div><div class="balance">${state.points}</div><p>Tu saldo de ejemplo. Cada decisión puede contar.</p><span class="chip" style="background:#ffffff12;color:#e1eddd;border-color:#ffffff25">Solo en esta visita · sin valor real</span></section>
         <div class="metrics two">${metric(state.ticketClaims.filter(t => t.status === 'validated').length, 'Usos intermodales acreditados', 'Barik + ticket P+R validados')}${metric(state.reports.filter(r => r.validated).length, 'Aportaciones validadas', 'Sensor identificado')}</div>
         <section class="panel panel-pad"><h3>Tu actividad</h3>${transactions.length ? transactions.map(t => `<div class="transaction">${icon(t.glyph)}<div><strong>${e(t.label)}</strong><small>${e(t.detail)}</small></div><span class="amount${t.amount.startsWith('−') ? ' negative' : ''}">${t.amount}</span></div>`).join('') : '<p class="footnote">Acredita un uso intermodal o verifica la lectura de un sensor para sumar puntos.</p>'}<div class="transaction">${icon('leaf')}<div><strong>Saldo inicial de ejemplo</strong><small>Punto de partida de esta versión local</small></div><span class="amount">+110</span></div></section>
-        ${state.ticketClaims.length ? `<section class="panel panel-pad ticket-list"><h3>Justificantes de esta visita</h3>${state.ticketClaims.map(t => `<div class="transaction">${icon(t.status === 'validated' ? 'check' : 'clock')}<div><strong>${e(t.reference)}</strong><small>${{ pending: 'Pendiente de validar', validated: 'Validado · +30 puntos', cancelled: 'Cancelado al desvincular Barik' }[t.status]}</small></div>${button('Ver estado', 'ticket-details', { id: t.id, kind: 'quiet', small: true })}</div>`).join('')}</section>` : ''}</div>
+        ${state.ticketClaims.length ? `<section class="panel panel-pad ticket-list"><h3>Justificantes de esta visita</h3>${state.ticketClaims.map(t => `<div class="transaction">${icon(t.status === 'validated' ? 'check' : 'clock')}<div><strong translate="no">${e(t.reference)}</strong><small>${{ pending: 'Pendiente de validar', validated: 'Validado · +30 puntos', cancelled: 'Cancelado al desvincular Barik' }[t.status]}</small></div>${button('Ver estado', 'ticket-details', { id: t.id, kind: 'quiet', small: true })}</div>`).join('')}</section>` : ''}</div>
         <div class="stack"><section class="panel panel-pad"><div class="eyebrow">BARIK PERSONALIZADA</div><h3 style="margin:12px 0 20px">Tu movilidad vuelve a ti.</h3><div class="reward-visual"><div class="barik-card"><strong>barik</strong><span>${state.barik ? `PERSONALIZADA · •••• ${e(state.barik.lastFour)}` : 'VINCULACIÓN LOCAL · SIN VALOR REAL'}</span></div></div>
-        <h3 style="margin-top:22px">${state.barik ? e(state.barik.alias) : 'Vincula tu tarjeta personalizada'}</h3><p class="small muted">1. Vincula tu Barik. 2. Sube la foto del ticket P+R. 3. Valida el uso intermodal para sumar 30 puntos de ejemplo.</p>
+        <h3 style="margin-top:22px"${state.barik ? ' translate="no"' : ''}>${state.barik ? e(state.barik.alias) : 'Vincula tu tarjeta personalizada'}</h3><p class="small muted">1. Vincula tu Barik. 2. Sube la foto del ticket P+R. 3. Valida el uso intermodal para sumar 30 puntos de ejemplo.</p>
         ${goButton(state.barik ? 'Subir ticket del P+R' : 'Vincular mi Barik', state.barik ? 'ticket' : 'barik', { kind: 'green', full: true, glyph: state.barik ? 'upload' : 'card' })}
         ${state.barik ? `<div style="margin-top:10px">${goButton('Gestionar tarjeta vinculada', 'barik', { kind: 'secondary', full: true })}</div>` : ''}<p class="footnote" style="margin-top:13px">Vinculación y validación de ejemplo. No se comprueba la tarjeta con el operador ni se envían fotografías.</p></section>
         <section class="card"><div class="eyebrow">CANJE EN TRANSPORTE PÚBLICO</div><h3>100 puntos, una recompensa.</h3><p>No hay recargas reales ni acuerdos comerciales activos.</p><div style="margin-top:16px">${button(!state.barik ? 'Vincula Barik para canjear' : state.points >= 100 ? 'Canjear 100 puntos · ejemplo' : 'Necesitas 100 puntos', state.barik ? 'redeem' : 'go', { view: state.barik ? '' : 'barik', kind: 'secondary', full: true, disabled: !!state.barik && state.points < 100, glyph: 'gift' })}</div></section>
         ${option('Sumar con la comunidad', 'Verifica un sensor cuando estés parado.', 'users', 'go', 'report')}</div></div>`;
   }
   function barikStatus() {
-    return `<div class="barik-status">${icon('card')}<div><strong>${e(state.barik.alias)}</strong><small>Barik personalizada · •••• ${e(state.barik.lastFour)}</small></div><span class="chip active">Vinculada localmente</span></div>`;
+    return `<div class="barik-status">${icon('card')}<div><strong translate="no">${e(state.barik.alias)}</strong><small>Barik personalizada · •••• ${e(state.barik.lastFour)}</small></div><span class="chip active">Vinculada localmente</span></div>`;
   }
   function renderBarik() {
     const privacy = banner('No introduzcas el número completo ni tu nombre.', 'Basta un alias y cuatro dígitos de ejemplo. Se mantienen solo durante esta visita; no verificamos la identidad del titular ni contactamos con Barik.', 'shield', 'neutral');
@@ -388,7 +408,7 @@
         <div class="stack">${privacy}${card('positive', 'RECOMPENSAS CON JUSTIFICANTE', 'Barik + P+R + transporte público.', 'Sube la fotografía del ticket del parking disuasorio y confirma el uso intermodal. Los puntos se suman solo después de la validación.', '30 puntos de ejemplo por ticket válido, sin duplicados')}${card('', 'SIN TARJETAS GUARDADAS', 'Al cerrar, esta vinculación desaparece.', 'Las preferencias de la interfaz sí pueden persistir. El alias, los cuatro dígitos y los justificantes no se guardan en el navegador.')}</div></div>`;
   }
   function photoMarkup(photo) {
-    return `<figure class="ticket-preview"><img src="${e(photo.url)}" alt="Vista previa local del ticket de parking seleccionado"><figcaption>${e(photo.name)} · ${(photo.size / 1024).toFixed(0)} KB · no se envía a servidores</figcaption></figure>`;
+    return `<figure class="ticket-preview"><img src="${e(photo.url)}" alt="Vista previa local del ticket de parking seleccionado"><figcaption><span translate="no">${e(photo.name)}</span> · ${(photo.size / 1024).toFixed(0)} KB · no se envía a servidores</figcaption></figure>`;
   }
   function renderTicket() {
     const headingHtml = back('rewards', 'Volver a mi movilidad') + heading('Tu ticket acredita el cambio.', 'Parking disuasorio + transporte público. Una foto y una tarjeta personalizada, sin formularios largos.');
@@ -398,7 +418,7 @@
       <div class="proof-steps"><span>1. Barik vinculada</span><span class="active">2. Foto del ticket</span><span>3. Validación</span></div>${barikStatus()}
       ${selectField('parking', 'Parking disuasorio del ticket', M.PARKINGS.filter(p => p.type === 'pr').map(p => [p.id, p.name]), 'leioa')}
       <label class="field">Referencia del ticket<input name="reference" maxlength="40" minlength="3" placeholder="Por ejemplo, PR-2026-001" required autocomplete="off"><small>De 3 a 40 letras, números, espacios, / o guiones. Sin matrículas ni datos personales.</small></label>
-      <div class="upload-box">${icon('upload')}<label class="field" for="ticket-file">Fotografía del ticket de parking</label><p>Utiliza un justificante de ejemplo sin datos personales. JPEG, PNG o WebP · hasta 5 MB.</p><input id="ticket-file" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="ticket-photo-status"><div id="ticket-photo-preview">${photo ? photoMarkup(photo) + button('Quitar fotografía', 'remove-ticket-photo', { kind: 'quiet', small: true }) : ''}</div><p id="ticket-photo-status" class="footnote" role="status">${photoLoading ? 'Comprobando la imagen…' : photo ? 'Fotografía preparada para el envío local.' : 'Todavía no has seleccionado una fotografía.'}</p></div>
+      <div class="upload-box">${icon('upload')}<h3>Fotografía del ticket de parking</h3><p>Utiliza un justificante de ejemplo sin datos personales. JPEG, PNG o WebP · hasta 5 MB.</p><label class="button secondary small" for="ticket-file">Elegir fotografía</label><input id="ticket-file" class="sr-only" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Elegir fotografía" aria-describedby="ticket-photo-status"><div id="ticket-photo-preview">${photo ? photoMarkup(photo) + button('Quitar fotografía', 'remove-ticket-photo', { kind: 'quiet', small: true }) : ''}</div><p id="ticket-photo-status" class="footnote" role="status">${photoLoading ? 'Comprobando la imagen…' : photo ? 'Fotografía preparada para el envío local.' : 'Todavía no has seleccionado una fotografía.'}</p></div>
       ${toggle('intermodal', 'He combinado este P+R con transporte público.', 'El ticket debe corresponder al uso intermodal que acreditas.', false)}
       ${toggle('stopped', 'Estoy parado y puedo completar el envío.', 'Nunca subas documentos ni rellenes formularios en marcha.', false)}
       <p id="ticket-error" class="inline-message" role="alert"${photoError ? '' : ' hidden'}>${e(photoError)}</p>
@@ -487,7 +507,7 @@
       + `<form id="settings-form"><div class="two-col"><section class="panel panel-pad"><div class="theme-setting"><h2>De día y de noche</h2>${selectField('theme', 'Apariencia de la web', [['light', 'Modo diurno'], ['dark', 'Modo nocturno']], p.theme)}<p class="footnote" style="margin-top:12px">También puedes cambiarla con el botón de luna o sol de la cabecera. Tu elección se recuerda en este navegador.</p></div>
         <h2>Ver con claridad</h2><p class="small muted">El mapa combina etiquetas, formas y colores en ambos temas.</p><fieldset><legend>COLORES DEL MAPA</legend><div class="radio-options">${Object.entries(visionNames).map(([key, title]) => `<label class="radio-option"><input type="radio" name="vision" value="${key}"${p.vision === key ? ' checked' : ''}><span><strong>${title}</strong><small>${{ standard: 'Rojo y verde, con señales redundantes.', deuteranopia: 'Azul y naranja, con etiquetas A y B.', protanopia: 'Azul y ocre, con triángulo y círculo.', tritanopia: 'Verde azulado y magenta, con etiquetas.' }[key]}</small></span></label>`).join('')}</div></fieldset><section class="panel map-panel" style="margin-top:20px">${mapMarkup(false, true)}${mapLegend()}</section></section>
         <div class="stack"><section class="panel panel-pad"><h2>Leer con calma</h2><div class="form-stack">${selectField('font', 'Tipografía', [['inter', 'Inter · estándar'], ['lexend', 'Lexend · lectura adaptada']], p.font)}${selectField('spacing', 'Espacio entre líneas', [['normal', 'Normal'], ['wide', 'Amplio']], p.spacing)}</div>${toggle('simple', 'Lectura simplificada', 'Oculta información secundaria, sin quitar advertencias de seguridad.', p.simple)}${goButton('Ver lectura guiada', 'reading', { kind: 'secondary', full: true, glyph: 'access' })}</section>
-        <section class="panel panel-pad"><h2>Avisos y preferencias</h2>${toggle('alerts', 'Avisos preventivos', 'Consulta alertas de eventos y clima antes de viajar.', p.alerts)}${option('Mis condiciones de acceso', 'PMR, permiso de residente y distancia a pie.', 'sliders', 'go', 'profile')}${option('Estado de la información', 'Lecturas, sensores y datos caducados.', 'clock', 'go', 'connection')}</section>
+        <section class="panel panel-pad"><h2>Avisos y preferencias</h2>${toggle('alerts', 'Avisos preventivos', 'Eventos, atascos, accidentes, obras y accesos que pueden afectar a tu trayecto.', p.alerts)}${option('Mis condiciones de acceso', 'PMR, permiso de residente y distancia a pie.', 'sliders', 'go', 'profile')}${option('Estado de la información', 'Lecturas, sensores y datos caducados.', 'clock', 'go', 'connection')}</section>
         ${banner('Preferencias locales. Tú decides.', 'Solo estas opciones se guardan en tu navegador. Puedes restablecerlas cuando quieras.', 'shield', 'neutral')}${button('Abrir asistente de ayuda', 'toggle-assistant', { kind: 'secondary', full: true, glyph: 'chat' })}</div></div>
         <div class="form-actions">${button('Restablecer preferencias', 'reset-preferences', { kind: 'secondary' })}<button class="button" type="submit">${icon('check')} Guardar preferencias</button></div></form>`;
   }
@@ -505,7 +525,7 @@
     const entries = results.map(record => {
       const pmr = record.pmr === true ? 'Sí, según la fuente' : record.pmr === false ? 'No, según la fuente' : 'Sin dato';
       const mapUrl = `https://www.openstreetmap.org/search?query=${encodeURIComponent(`${record.address}, ${record.municipality}, Bizkaia`)}`;
-      return `<article class="catalog-entry"><div class="catalog-entry-title"><h3>${e(record.name)}</h3><p>${e(record.address)}</p><span>${e([record.municipality, record.district, record.neighborhood !== record.district ? record.neighborhood : ''].filter(Boolean).join(' · '))}</span></div>
+      return `<article class="catalog-entry"><div class="catalog-entry-title" translate="no"><h3>${e(record.name)}</h3><p>${e(record.address)}</p><span>${e([record.municipality, record.district, record.neighborhood !== record.district ? record.neighborhood : ''].filter(Boolean).join(' · '))}</span></div>
         <dl class="catalog-facts"><div><dt>Capacidad de residentes</dt><dd>${record.capacity === null ? 'Sin dato' : `${record.capacity} plazas`}</dd></div><div><dt>Plazas PMR</dt><dd>${pmr}</dd></div><div><dt>Ocupación actual</dt><dd>Sin dato</dd></div></dl>
         <a class="button secondary small catalog-address" href="${e(mapUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Buscar la dirección de ${e(record.name)} en OpenStreetMap, nueva pestaña">${icon('map')} Ver dirección</a></article>`;
     }).join('');
@@ -602,6 +622,7 @@
     applyPreferences();
   }
   function applyPreferences() {
+    AparkaI18n.setLanguage(state.preferences.language);
     applyTheme(state.preferences.theme);
     document.body.dataset.vision = state.preferences.vision;
     document.body.dataset.font = state.preferences.font;
@@ -637,16 +658,17 @@
   function activeNav() {
     if (['search', 'results', 'parking', 'sensor', 'location', 'welcome', 'connection', 'profile'].includes(state.view)) return 'map';
     if (['route', 'drive', 'arrival'].includes(state.view)) return 'compare';
-    if (['event', 'heat'].includes(state.view)) return 'alerts';
+    if (['event', 'incident'].includes(state.view)) return 'alerts';
+    if (state.view === 'heat') return 'map';
     if (['pending', 'validated', 'forum', 'thread'].includes(state.view)) return 'report';
     if (['redeemed', 'barik', 'ticket', 'ticket-status'].includes(state.view)) return 'rewards';
     if (state.view === 'reading') return 'settings';
     return state.view;
   }
   function renderNavigation() {
-    const primary = [['map', 'map', 'Encontrar aparcamiento'], ['compare', 'train', 'Comparar rutas'], ['alerts', 'bell', 'Avisos preventivos'], ['report', 'users', 'Reportes y foro'], ['rewards', 'leaf', 'Puntos y recompensas']];
+    const primary = [['map', 'map', 'Encontrar aparcamiento'], ['compare', 'train', 'Comparar rutas'], ['alerts', 'bell', 'Eventos e incidencias'], ['report', 'users', 'Reportes y foro'], ['rewards', 'leaf', 'Puntos y recompensas']];
     const other = [['catalog', 'shield', 'Procedencia y cobertura'], ['impact', 'chart', 'Ahorro e impacto'], ['public', 'screen', ''], ['settings', 'access', '']];
-    const nav = items => items.map(([view, glyph, description]) => `<a href="#${view}" class="nav-item"${activeNav() === view ? ' aria-current="page"' : ''}>${icon(glyph)}<span class="nav-copy"><strong>${e(views[view][0])}</strong>${description ? `<small>${e(description)}</small>` : ''}</span>${view === 'alerts' && state.preferences.alerts ? '<span class="nav-count">2</span>' : ''}</a>`).join('');
+    const nav = items => items.map(([view, glyph, description]) => `<a href="#${view}" class="nav-item"${activeNav() === view ? ' aria-current="page"' : ''}>${icon(glyph)}<span class="nav-copy"><strong>${e(views[view][0])}</strong>${description ? `<small>${e(description)}</small>` : ''}</span>${view === 'alerts' && state.preferences.alerts ? `<span class="nav-count">${M.MOBILITY_ALERTS.length}</span>` : ''}</a>`).join('');
     document.getElementById('main-nav').innerHTML = nav(primary) + '<div class="nav-label">MÁS OPCIONES</div>' + nav(other);
     document.getElementById('breadcrumb-current').textContent = views[state.view][0];
   }
@@ -708,8 +730,13 @@
       return;
     }
     speechSynthesis.cancel();
-    const speech = new SpeechSynthesisUtterance(message);
-    speech.lang = 'es-ES';
+    const speech = new SpeechSynthesisUtterance(AparkaI18n.text(message));
+    speech.lang = AparkaI18n.locale;
+    if (state.preferences.language === 'eu') {
+      const voice = speechSynthesis.getVoices().find(item => item.lang.toLowerCase().startsWith('eu'));
+      if (!voice) return notify('No hay una voz en euskera disponible en este navegador.', true);
+      speech.voice = voice;
+    }
     speech.rate = .9;
     speech.onerror = event => {
       if (event.error !== 'canceled' && event.error !== 'interrupted') notify('No se pudo reproducir la voz. Consulta el texto de la pantalla.', true);
@@ -720,7 +747,7 @@
     const log = document.getElementById('assistant-log');
     const message = document.createElement('div');
     message.className = 'chat-message' + (user ? ' user' : '');
-    message.innerHTML = `<span class="sr-only">${user ? 'Tú' : 'Asistente'}: </span><p>${e(text)}</p>${destination ? button(destination.label, destination.action || 'go', { view: destination.view || '', id: destination.id || '', kind: 'quiet', small: true, glyph: 'arrow' }) : ''}`;
+    message.innerHTML = `<span class="sr-only">${user ? 'Tú' : 'Asistente'}: </span><p${user ? ' translate="no"' : ''}>${e(text)}</p>${destination ? button(destination.label, destination.action || 'go', { view: destination.view || '', id: destination.id || '', kind: 'quiet', small: true, glyph: 'arrow' }) : ''}`;
     log.append(message);
     while (log.children.length > 40) log.firstElementChild.remove();
     log.scrollTop = log.scrollHeight;
@@ -740,7 +767,7 @@
   }
   function assistantAnswer(question) {
     const normalize = text => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    const q = normalize(question);
+    const q = normalize(AparkaI18n.question(question));
     if (/catalogo|datos reales|fuentes reales|fuente oficial|datos oficiales/.test(q)) {
       const count = officialCatalog?.records?.length || 0;
       return { text: `El catálogo oficial incorporado contiene ${count} aparcamientos municipales para residentes de Bilbao. Es una copia local del Ayuntamiento, separada del mapa simulado de Bizkaia.\nNo publica ocupación en tiempo real ni confirma que puedas acceder. La presencia de plazas PMR no garantiza que estén libres. Los demás municipios todavía no tienen una fuente oficial incorporada.`, view: 'catalog', label: 'Consultar el catálogo y su procedencia' };
@@ -760,8 +787,8 @@
     if (/saritu|barik|ticket|justificante|puntos|canj|recompensa|acreditar/.test(q)) {
       return { text: `${state.barik ? 'Ya tienes una Barik personalizada vinculada localmente.' : 'Primero vincula una Barik personalizada con un alias y cuatro dígitos de ejemplo.'}\nDespués adjunta una foto del ticket de un P+R y confirma que continuaste en transporte público. Solo la validación de ejemplo suma 30 puntos. Finalizar una ruta no los concede.\nNo se recarga tu tarjeta real ni se envía la fotografía.`, view: state.barik ? 'ticket' : 'barik', label: state.barik ? 'Adjuntar ticket del P+R' : 'Vincular mi Barik' };
     }
-    if (/aurreratu|evento|partido|concierto|san mames/.test(q) && !/sensor|plaza|zona|estado/.test(q)) {
-      return { text: 'En la agenda de ejemplo hay un evento en San Mamés con presión alta prevista de 18:00 a 19:00. Se recomienda decidir antes de entrar: P+R Leioa + Metro o una salida a las 19:15.\nEs un escenario simulado, no un evento verificado de hoy.', view: 'event', label: 'Ver aviso y alternativas' };
+    if (/aurreratu|avisos|evento|partido|concierto|atasco|retencion|accidente|trafico|corte|obras|gorabehera|auto.ilara|istripu|ekitaldi/.test(q) && !/sensor|plaza/.test(q)) {
+      return { text: 'AurreraTU reúne eventos, atascos, accidentes, obras y cortes, cambios de transporte y problemas de accesibilidad. Puedes filtrar por tipo y municipio.\nSon escenarios de ejemplo, no avisos vigentes ni una fuente de tráfico en directo. Confirma la situación con el servicio de tráfico o el operador.', view: 'alerts', label: 'Consultar avisos de movilidad' };
     }
     if (/calor|temperatura|clima|sombra|oasis/.test(q)) {
       return { text: 'El escenario de clima muestra 38 °C. Prioriza sombra, paradas cubiertas y transporte público; revisa tu tramo a pie y considera un oasis térmico de referencia como Doña Casilda.\nLa temperatura es de ejemplo. Consulta los avisos oficiales para viajar.', view: 'heat', label: 'Consultar la alternativa más fresca' };
@@ -781,7 +808,7 @@
     if (/guia|empezar|como uso|paso a paso|ayuda|funciona/.test(q)) {
       return { text: '1. Ajusta tu perfil de acceso.\n2. Busca el destino y revisa el sensor, su ubicación y la antigüedad del dato.\n3. Compara coche, Metro y bici contando también la búsqueda.\n4. Si usas P+R + transporte público, vincula Barik y adjunta tu ticket para acreditar puntos.\nUna plaza indicada nunca queda reservada.', view: 'profile', label: 'Empezar por mi perfil' };
     }
-    const municipality = M.municipalityFor(question);
+    const municipality = M.municipalityFor(question) || (state.preferences.language === 'eu' ? M.MUNICIPALITIES.find(place => [place.name, ...place.aliases].some(name => ['n', 'ko', 'ra', 'tik', 'an', 'en'].some(suffix => q.split(/[^a-z0-9-]+/).includes(normalize(name) + suffix)))) : null);
     if (municipality || /aurkitu|sensor|zona|estado|plaza|aparcar|disponib|ocup|caduc|conexion/.test(q)) {
       const parking = M.PARKINGS.find(p => q.includes(normalize(p.id)) || q.includes(normalize(p.sensor.id)));
       const targets = parking ? [parking] : municipality ? M.PARKINGS.filter(item => item.municipality === municipality.id) : M.results(state).slice(0, 3);
@@ -852,7 +879,7 @@
     },
     'close-assistant': () => closeAssistant(),
     'ask-assistant': el => {
-      const questions = { eventos: '¿Qué eventos cercanos hay?', zonas: '¿Cuál es el estado de las zonas?', barik: '¿Cómo vinculo mi Barik y presento un ticket?', guia: 'Guíame paso a paso para empezar.' };
+      const questions = { eventos: '¿Qué avisos de movilidad hay?', zonas: '¿Cuál es el estado de las zonas?', barik: '¿Cómo vinculo mi Barik y presento un ticket?', guia: 'Guíame paso a paso para empezar.' };
       if (!Object.hasOwn(questions, el.dataset.id)) return notify('Esa guía no está disponible.', true);
       askAssistant(questions[el.dataset.id]);
     },
@@ -905,6 +932,22 @@
       catalogQuery = '';
       render();
       document.getElementById('catalog-query').focus();
+    },
+    'open-alert': el => {
+      if (!M.MOBILITY_ALERTS.some(alert => alert.id === el.dataset.id)) return;
+      state.selectedAlertId = el.dataset.id;
+      navigate('incident');
+    },
+    'alert-destination': el => {
+      const alert = M.MOBILITY_ALERTS.find(item => item.id === el.dataset.id);
+      if (!alert) return;
+      selectDestination(M.MUNICIPALITIES.find(place => place.id === alert.municipality).name);
+      navigate('results');
+    },
+    'clear-alert-filters': () => {
+      state.alertCategory = 'all';
+      state.alertMunicipality = 'all';
+      render();
     },
     'reference-route': () => {
       state.origin = 'Getxo';
@@ -1117,6 +1160,10 @@
   });
   document.addEventListener('change', event => {
     if (event.target.id === 'ticket-file') chooseTicketPhoto(event.target.files[0]);
+    if (event.target.id === 'language-select') {
+      state.preferences.language = event.target.value;
+      savePreferences('Idioma actualizado.');
+    }
     if (event.target.name === 'parking' && event.target.closest('[data-report-form]')) {
       const parking = M.PARKINGS.find(p => p.id === event.target.value);
       if (!parking) return notify('No se encuentra el sensor seleccionado.', true);
@@ -1124,6 +1171,13 @@
       const form = event.target.closest('[data-report-form]');
       form.querySelector('[data-report-sensor]').innerHTML = form.id === 'quick-report-form'
         ? `<p class="footnote">${e(parking.sensor.location)} · ubicación de ejemplo</p>` : sensorInfo(parking);
+    }
+    if (event.target.form?.id === 'alert-filters-form') {
+      const name = event.target.name;
+      if (name === 'alert-category') state.alertCategory = event.target.value;
+      if (name === 'alert-municipality') state.alertMunicipality = event.target.value;
+      render();
+      document.querySelector(`#alert-filters-form [name="${name}"]`)?.focus();
     }
     if (event.target.id === 'forum-category') {
       state.forumCategory = event.target.value;
@@ -1165,6 +1219,13 @@
   document.getElementById('notification-button').innerHTML = icon('bell');
   document.getElementById('sidebar-leaf').innerHTML = icon('leaf');
   document.getElementById('assistant-toggle').innerHTML = icon('chat') + '<span>GaldeTU</span>';
+  AparkaI18n.start(document.documentElement);
+  document.addEventListener('invalid', event => {
+    if (typeof event.target.setCustomValidity === 'function') event.target.setCustomValidity(AparkaI18n.text(event.target.validity.valueMissing ? 'Completa este campo.' : 'Revisa el valor de este campo.'));
+  }, true);
+  document.addEventListener('input', event => {
+    if (typeof event.target.setCustomValidity === 'function') event.target.setCustomValidity('');
+  });
   window.addEventListener('pagehide', () => {
     clearTicketPhoto();
     AparkaMaps.destroy();

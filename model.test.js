@@ -6,6 +6,27 @@ const vm = require('node:vm');
 
 const model = vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'model.js'), 'utf8') + '\nAparkaModel');
 
+test('language preference accepts Spanish and Basque without invalidating older preferences', () => {
+  for (const language of ['es', 'eu']) assert.equal(model.validPreferences({ ...model.DEFAULTS, language }), true);
+  assert.equal(model.validPreferences({ ...model.DEFAULTS, language: 'invalid' }), false);
+  const legacy = { ...model.DEFAULTS };
+  delete legacy.language;
+  assert.equal(model.validPreferences(legacy), true);
+  assert.equal(model.createState(legacy).preferences.language, 'es');
+});
+
+test('mobility alerts cover incidents and filter by category and municipality', () => {
+  assert.equal(model.mobilityAlerts().length, 6);
+  for (const category of Object.keys(model.ALERT_CATEGORIES)) {
+    assert.ok(model.mobilityAlerts(category).length > 0);
+    assert.ok(model.mobilityAlerts(category).every(alert => alert.category === category));
+  }
+  assert.equal(model.mobilityAlerts('accident', 'durango').length, 1);
+  assert.equal(model.mobilityAlerts('accident', 'bilbao').length, 0);
+  assert.equal(model.mobilityAlerts('invalid').length, 0);
+  for (const alert of model.MOBILITY_ALERTS) assert.ok(model.MUNICIPALITIES.some(municipality => municipality.id === alert.municipality));
+});
+
 test('the initial catalogue covers coast and inland Bizkaia', () => {
   const state = model.createState();
   assert.equal(state.destination, 'Bizkaia');

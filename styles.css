@@ -296,6 +296,22 @@ body[data-theme=dark] .preventive-alert { border-color: var(--amber); }
 .forum-card h2 { margin: 16px 0 10px; }
 .thread-title { padding: 0; border: 0; background: transparent; text-align: left; font: inherit; color: var(--ink); }
 .thread-title:hover { text-decoration: underline; text-underline-offset: 3px; }
+.language-picker { display: flex; align-items: center; flex-shrink: 0; }
+.upload-box:has(#ticket-file:focus) label[for=ticket-file] { outline: 3px solid #2866ad; outline-offset: 3px; }
+.language-picker select { width: 103px; min-height: 36px; border: 1px solid var(--line); border-radius: 8px; padding: 6px; background: var(--surface); color: var(--ink); font-size: 12px; cursor: pointer; }
+@media(max-width:760px) {
+  .topbar .breadcrumb, .topbar .demo-label { display: none; }
+  .topbar-actions { margin-left: auto; }
+  .language-picker select { width: 91px; font-size: 11px; }
+}
+@media(max-width:375px) { .topbar-actions .profile-button { display: none; } }
+.alert-notice { margin-bottom: 20px; }
+.alert-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 700px; }
+.alert-count { margin: 15px 0; }
+.mobility-alert { display: flex; flex-direction: column; }
+.mobility-alert .button { margin-top: 18px; }
+.mobility-alert .meta { margin-top: auto; padding-top: 14px; }
+@media(max-width:480px) { .alert-filters { grid-template-columns: minmax(0, 1fr); } }
 .catalog-provenance { padding: 20px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .catalog-provenance h2 { font-size: 16px; margin-bottom: 12px; letter-spacing: 0; }
 .catalog-source-facts { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 12px; }

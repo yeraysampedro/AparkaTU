@@ -7,6 +7,18 @@ const AparkaModel = (() => {
   const TICKET_REWARD = 30;
   const MOBILITY_EQUIVALENCE = Object.freeze({ points: TICKET_REWARD, co2Kg: 1.2, minutes: 16 });
   const FORUM_CATEGORIES = Object.freeze({ share: 'Cesión temporal', question: 'Duda sobre una zona', incident: 'Incidencia' });
+  const ALERT_CATEGORIES = Object.freeze({ event: 'Eventos', congestion: 'Atascos', accident: 'Accidentes', works: 'Obras y cortes', transit: 'Transporte público', access: 'Accesibilidad' });
+  const MOBILITY_ALERTS = Object.freeze([
+    { id: 'event-san-mames', category: 'event', municipality: 'bilbao', severity: 'warning', title: 'Evento en San Mamés', place: 'Entorno de San Mamés', period: '18:00–19:00', situation: 'Llegadas concentradas y mayor presión de aparcamiento en el entorno del evento.', advice: 'Valora llegar antes, utilizar transporte público o aparcar fuera del entorno. Confirma los servicios con el operador.' },
+    { id: 'traffic-a8', category: 'congestion', municipality: 'barakaldo', severity: 'warning', title: 'Retenciones en la A-8', place: 'Accesos a Barakaldo', period: '17:30–19:00', situation: 'Circulación lenta y accesos con retenciones en este escenario.', advice: 'Consulta el estado de la vía antes de salir. No se calcula un retraso ni un desvío sin datos de tráfico verificados.' },
+    { id: 'accident-n634', category: 'accident', municipality: 'durango', severity: 'danger', title: 'Accidente con un carril afectado', place: 'N-634 · entorno de Durango', period: '17:30–18:30', situation: 'Un incidente de tráfico afecta a un carril en este ejemplo. La situación puede cambiar.', advice: 'Respeta la señalización y las indicaciones de los servicios de tráfico. Consulta fuentes oficiales antes de desplazarte.' },
+    { id: 'works-bermeo', category: 'works', municipality: 'bermeo', severity: 'warning', title: 'Obras y corte de acceso', place: 'Acceso urbano a Bermeo', period: '08:00–20:00', situation: 'Un acceso local está cerrado por obras y el tráfico se reorganiza en este escenario.', advice: 'Comprueba los accesos habilitados y las restricciones municipales. No damos por válido un desvío sin verificarlo.' },
+    { id: 'transit-getxo', category: 'transit', municipality: 'getxo', severity: 'warning', title: 'Cambios en una conexión de transporte', place: 'Getxo · conexión intermodal', period: '17:00–19:30', situation: 'Una conexión de transporte tiene cambios de servicio en este ejemplo.', advice: 'Confirma horarios y transbordos con el operador. Los tiempos de la ruta de muestra no reflejan esta incidencia.' },
+    { id: 'access-basauri', category: 'access', municipality: 'basauri', severity: 'danger', title: 'Ascensor fuera de servicio', place: 'Basauri · acceso a transporte público', period: '16:00–20:00', situation: 'Un acceso sin escalones no está disponible en este escenario.', advice: 'Verifica una alternativa accesible con el operador antes de salir. No se sustituye por una ruta con escaleras.' }
+  ].map(alert => Object.freeze(alert)));
+  function mobilityAlerts(category = 'all', municipality = 'all') {
+    return MOBILITY_ALERTS.filter(alert => (category === 'all' || alert.category === category) && (municipality === 'all' || alert.municipality === municipality));
+  }
   const CATALOG_SOURCE = Object.freeze({
     id: 'bilbao-residents', publisher: 'Ayuntamiento de Bilbao', municipality: 'Bilbao',
     title: 'Aparcamientos Municipales para Residentes',
@@ -57,7 +69,7 @@ const AparkaModel = (() => {
   const DEFAULTS = Object.freeze({
     pmr: true, stepFree: true, includeOTA: false, preferPr: true,
     resident: false, vehicle: 'ECO', maxWalk: 300, alerts: true,
-    vision: 'standard', font: 'inter', spacing: 'normal', simple: false, theme: 'light'
+    vision: 'standard', font: 'inter', spacing: 'normal', simple: false, theme: 'light', language: 'es'
   });
   const LOCAL_PARKINGS = [
     Object.freeze({ id: 'leioa', name: 'P+R Leioa', type: 'pr', coordinates: Object.freeze([43.318056, -2.991944]), mapReference: 'Entorno de la estación de Leioa · ubicación aproximada del ejemplo', spaces: 42, pmr: 2, stepFree: true, walk: 260, residentOnly: false, vehicles: ['B', 'C', 'ECO', '0'], age: 42, margin: 7, source: 'Sensor LEI-ACC-01', connection: 'Metro L1 · conexión a San Mamés', sensor: Object.freeze({ id: 'LEI-ACC-01', location: 'P+R Leioa · acceso principal · carril de entrada 1 · barrera A', device: 'Contador de entradas y salidas', coverage: 'Ocupación agregada del aparcamiento; no confirma una plaza concreta.' }) }),
@@ -136,6 +148,7 @@ const AparkaModel = (() => {
       completedModes: [], redemptionPending: false, redemptions: 0, storageWarning: '',
       barik: null, barikSequence: 0, ticketClaims: [], lastTicketId: null,
       environmentLayers: { refuges: false, air: false, shade: false },
+      alertCategory: 'all', alertMunicipality: 'all', selectedAlertId: 'event-san-mames',
       forumCategory: 'all', selectedThreadId: null,
       forumThreads: [
         { id: 1, category: 'question', zone: 'Indautxu', title: 'Acceso sin escalones desde el parking', message: '¿Dónde puedo consultar si el acceso al Metro está operativo?', availability: '', own: false, closed: false, createdAt: DEMO_START - 3600000, replies: [{ text: 'Consulta el estado de los ascensores con el operador antes de salir. El mapa de ejemplo no confirma su funcionamiento.', own: false, createdAt: DEMO_START - 1800000 }] },
@@ -330,14 +343,15 @@ const AparkaModel = (() => {
   function validPreferences(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
     const booleans = ['pmr', 'stepFree', 'includeOTA', 'preferPr', 'resident', 'alerts', 'simple'];
-    return Object.keys(DEFAULTS).every(key => key === 'theme' || Object.hasOwn(value, key))
+    return Object.keys(DEFAULTS).every(key => ['theme', 'language'].includes(key) || Object.hasOwn(value, key))
       && booleans.every(key => typeof value[key] === 'boolean')
       && ['B', 'C', 'ECO', '0'].includes(value.vehicle)
       && [50, 100, 300, 600].includes(value.maxWalk)
       && ['standard', 'deuteranopia', 'protanopia', 'tritanopia'].includes(value.vision)
       && ['inter', 'lexend'].includes(value.font)
       && ['normal', 'wide'].includes(value.spacing)
-      && (!Object.hasOwn(value, 'theme') || ['light', 'dark'].includes(value.theme));
+      && (!Object.hasOwn(value, 'theme') || ['light', 'dark'].includes(value.theme))
+      && (!Object.hasOwn(value, 'language') || ['es', 'eu'].includes(value.language));
   }
-  return Object.freeze({ DEMO_START, MAX_AGE_MS, MAX_TICKET_BYTES, TICKET_IMAGE_TYPES, TICKET_REWARD, MOBILITY_EQUIVALENCE, FORUM_CATEGORIES, FORUM_ZONES, ENVIRONMENT, DEFAULTS, MUNICIPALITIES, PARKINGS, CATALOG_SOURCE, parseOfficialParkings, officialCatalogResults, municipalityFor, isTerritory, referenceJourney, formatTime, formatAge, createState, reading, airReading, parkingStatus, changeDataMode, compatible, results, journey, journeyOptions, personalImpact, submitReport, validateReport, addForumThread, replyForumThread, closeForumThread, completeJourney, linkBarik, unlinkBarik, submitTicket, validateTicket, prepareRedemption, redeem, validPreferences });
+  return Object.freeze({ DEMO_START, MAX_AGE_MS, MAX_TICKET_BYTES, TICKET_IMAGE_TYPES, TICKET_REWARD, MOBILITY_EQUIVALENCE, FORUM_CATEGORIES, FORUM_ZONES, ALERT_CATEGORIES, MOBILITY_ALERTS, mobilityAlerts, ENVIRONMENT, DEFAULTS, MUNICIPALITIES, PARKINGS, CATALOG_SOURCE, parseOfficialParkings, officialCatalogResults, municipalityFor, isTerritory, referenceJourney, formatTime, formatAge, createState, reading, airReading, parkingStatus, changeDataMode, compatible, results, journey, journeyOptions, personalImpact, submitReport, validateReport, addForumThread, replyForumThread, closeForumThread, completeJourney, linkBarik, unlinkBarik, submitTicket, validateTicket, prepareRedemption, redeem, validPreferences });
 })();
